@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Plus, Trash2 } from "lucide-react";
 import { HighlightText } from "./highlight-text";
 import { copyToClipboard } from "@/lib/clipboard";
-import { useElementMetrics } from "@/hooks/use-element-metrics";
 
 interface FAQ {
   id: string;
@@ -65,17 +64,18 @@ function FAQCell({
   currentMatchId: string | null;
 }) {
   const [copied, setCopied] = useState(false);
-  const proseRef = useRef<HTMLDivElement>(null);
 
   const value = faq[field] || "";
-  const { height, lineCount } = useElementMetrics(proseRef, [value, searchQuery]);
-  const isTall = (lineCount ?? 0) >= 6 || height >= 140;
 
   useEffect(() => {
     if (!copied) return;
     const t = window.setTimeout(() => setCopied(false), 1000);
     return () => window.clearTimeout(t);
   }, [copied]);
+
+  useEffect(() => {
+    setCopied(false);
+  }, [value]);
 
   if (isEditing) {
     return (
@@ -112,8 +112,7 @@ function FAQCell({
       }}
     >
       <div
-        ref={proseRef}
-        className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap pr-14"
+        className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap pr-28"
       >
         {searchQuery ? (
           <HighlightText
@@ -130,93 +129,37 @@ function FAQCell({
       </div>
 
       <div className="absolute inset-0 pointer-events-none">
-        {isTall ? (
-          <div className="absolute inset-2 flex flex-col items-end justify-between opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
-            <div className="pointer-events-auto">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="bg-background/70 backdrop-blur-sm"
-                title="Edit"
-                aria-label="Edit"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onStartEdit(faq, field);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="pointer-events-auto">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="bg-background/70 backdrop-blur-sm"
-                title={copied ? "Copied" : "Copy"}
-                aria-label={copied ? "Copied" : "Copy"}
-                disabled={copyDisabled}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (copyDisabled) return;
-                  const ok = await copyToClipboard(value);
-                  if (ok) setCopied(true);
-                }}
-              >
-                {copied ? (
+        <div className="absolute right-2 bottom-2 opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
+          <div className="pointer-events-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-background/70 backdrop-blur-sm"
+              title={copied ? "Copied" : "Copy"}
+              aria-label={copied ? "Copied" : "Copy"}
+              disabled={copyDisabled}
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (copyDisabled) return;
+                const ok = await copyToClipboard(value);
+                if (ok) setCopied(true);
+              }}
+            >
+              {copied ? (
+                <>
                   <Check className="h-4 w-4" />
-                ) : (
+                  Copied
+                </>
+              ) : (
+                <>
                   <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+                  Copy
+                </>
+              )}
+            </Button>
           </div>
-        ) : (
-          <div className="absolute right-2 bottom-2 flex items-end justify-end gap-1 opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
-            <div className="pointer-events-auto">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="bg-background/70 backdrop-blur-sm"
-                title="Edit"
-                aria-label="Edit"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onStartEdit(faq, field);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="pointer-events-auto">
-              <Button
-                variant="outline"
-                size="icon-sm"
-                className="bg-background/70 backdrop-blur-sm"
-                title={copied ? "Copied" : "Copy"}
-                aria-label={copied ? "Copied" : "Copy"}
-                disabled={copyDisabled}
-                onClick={async (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (copyDisabled) return;
-                  const ok = await copyToClipboard(value);
-                  if (ok) setCopied(true);
-                }}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
