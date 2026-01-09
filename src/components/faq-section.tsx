@@ -28,6 +28,7 @@ interface FAQFormData {
 interface FAQSectionProps {
   section: Section;
   faqs: FAQ[];
+  resetSignal: number;
   onUpdateSection: (id: string, name: string) => void;
   onDeleteSection: (id: string) => void;
   onCreateFaq: (sectionId: string, data: FAQFormData) => void;
@@ -38,6 +39,7 @@ interface FAQSectionProps {
 export function FAQSection({
   section,
   faqs,
+  resetSignal,
   onUpdateSection,
   onDeleteSection,
   onCreateFaq,
@@ -113,6 +115,7 @@ export function FAQSection({
 
       <FAQTable
         faqs={faqs}
+        resetSignal={resetSignal}
         onCreate={(data) => onCreateFaq(section.id, data)}
         onUpdate={onUpdateFaq}
         onDelete={onDeleteFaq}

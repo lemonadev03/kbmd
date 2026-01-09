@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ interface FAQTableProps {
   onUpdate: (id: string, data: FAQFormData) => void;
   onCreate: (data: FAQFormData) => void;
   onDelete: (id: string) => void;
+  resetSignal: number;
 }
 
 interface EditingCell {
@@ -33,10 +34,22 @@ interface EditingCell {
   field: "question" | "answer" | "notes";
 }
 
-export function FAQTable({ faqs, onUpdate, onCreate, onDelete }: FAQTableProps) {
+export function FAQTable({
+  faqs,
+  onUpdate,
+  onCreate,
+  onDelete,
+  resetSignal,
+}: FAQTableProps) {
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState("");
   const [newRow, setNewRow] = useState<FAQFormData | null>(null);
+
+  useEffect(() => {
+    setEditingCell(null);
+    setEditValue("");
+    setNewRow(null);
+  }, [resetSignal]);
 
   const startEdit = (faq: FAQ, field: "question" | "answer" | "notes") => {
     setEditingCell({ id: faq.id, field });
@@ -45,6 +58,14 @@ export function FAQTable({ faqs, onUpdate, onCreate, onDelete }: FAQTableProps) 
 
   const saveEdit = (faq: FAQ) => {
     if (!editingCell) return;
+
+    const original = faq[editingCell.field];
+    if (editValue === original) {
+      setEditingCell(null);
+      setEditValue("");
+      return;
+    }
+
     onUpdate(faq.id, {
       question: editingCell.field === "question" ? editValue : faq.question,
       answer: editingCell.field === "answer" ? editValue : faq.answer,
@@ -101,7 +122,7 @@ export function FAQTable({ faqs, onUpdate, onCreate, onDelete }: FAQTableProps) 
             placeholder={`Enter ${field}...`}
           />
           <div className="text-xs text-muted-foreground mt-1">
-            ⌘+Enter to save · Esc to cancel
+            ⌘+Enter to apply · Esc to cancel
           </div>
         </div>
       );
@@ -152,7 +173,7 @@ export function FAQTable({ faqs, onUpdate, onCreate, onDelete }: FAQTableProps) 
                     placeholder="Enter notes..."
                   />
                   <div className="text-xs text-muted-foreground mt-1">
-                    ⌘+Enter to save · Esc to cancel
+                    ⌘+Enter to apply · Esc to cancel
                   </div>
                 </div>
               ) : (

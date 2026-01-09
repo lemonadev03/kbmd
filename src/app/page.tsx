@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { FAQSection } from "@/components/faq-section";
 import { VariablesSection } from "@/components/variables-section";
 import { ExportModal } from "@/components/export-modal";
@@ -17,9 +17,7 @@ import {
   updateSection,
   deleteSection,
   getFaqs,
-  createFaq,
-  updateFaq,
-  deleteFaq,
+  applyFaqBatch,
 } from "@/db/actions";
 
 interface Variable {
@@ -41,13 +39,17 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export default function Home() {
   const [sections, setSections] = useState<Section[]>([]);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [faqDraftById, setFaqDraftById] = useState<Record<string, FAQ>>({});
+  const [deletedFaqIds, setDeletedFaqIds] = useState<Set<string>>(new Set());
+  const [faqDraftResetSignal, setFaqDraftResetSignal] = useState(0);
+  const [isSavingFaqBatch, setIsSavingFaqBatch] = useState(false);
   const [variables, setVariables] = useState<Variable[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -71,14 +73,37 @@ export default function Home() {
     refreshData();
   }, []);
 
+  const baseFaqById = useMemo(() => {
+    return new Map(faqs.map((f) => [f.id, f]));
+  }, [faqs]);
+
+  const effectiveFaqs = useMemo(() => {
+    const out: FAQ[] = [];
+    const seen = new Set<string>();
+
+    for (const f of faqs) {
+      if (deletedFaqIds.has(f.id)) continue;
+      out.push(faqDraftById[f.id] ?? f);
+      seen.add(f.id);
+    }
+
+    for (const [id, draft] of Object.entries(faqDraftById)) {
+      if (seen.has(id)) continue;
+      if (deletedFaqIds.has(id)) continue;
+      out.push(draft);
+    }
+
+    return out;
+  }, [faqs, faqDraftById, deletedFaqIds]);
+
   const filteredFaqs = searchQuery
-    ? faqs.filter(
+    ? effectiveFaqs.filter(
         (faq) =>
           faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
           faq.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
           faq.notes.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : faqs;
+    : effectiveFaqs;
 
   const getFaqsForSection = (sectionId: string) => {
     return filteredFaqs.filter((faq) => faq.sectionId === sectionId);
@@ -132,23 +157,166 @@ export default function Home() {
     sectionId: string,
     data: { question: string; answer: string; notes: string }
   ) => {
-    await createFaq(sectionId, data.question, data.answer, data.notes);
-    refreshData();
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const now = new Date();
+
+    setFaqDraftById((prev) => ({
+      ...prev,
+      [id]: {
+        id,
+        sectionId,
+        question: data.question,
+        answer: data.answer,
+        notes: data.notes,
+        createdAt: now,
+        updatedAt: now,
+      },
+    }));
   };
 
   const handleUpdateFaq = async (
     id: string,
     data: { question: string; answer: string; notes: string }
   ) => {
-    await updateFaq(id, data.question, data.answer, data.notes);
-    refreshData();
+    setFaqDraftById((prev) => {
+      const base = baseFaqById.get(id);
+      const current = prev[id] ?? base;
+      if (!current) return prev;
+
+      const nextFaq: FAQ = {
+        ...current,
+        question: data.question,
+        answer: data.answer,
+        notes: data.notes,
+        updatedAt: new Date(),
+      };
+
+      if (base) {
+        const matchesBase =
+          nextFaq.sectionId === base.sectionId &&
+          nextFaq.question === base.question &&
+          nextFaq.answer === base.answer &&
+          nextFaq.notes === base.notes;
+
+        if (matchesBase) {
+          const { [id]: _removed, ...rest } = prev;
+          return rest;
+        }
+      }
+
+      return { ...prev, [id]: nextFaq };
+    });
   };
 
   const handleDeleteFaq = async (id: string) => {
-    if (confirm("Delete this FAQ?")) {
-      await deleteFaq(id);
-      refreshData();
+    const isNew = !baseFaqById.has(id);
+    const message = isNew
+      ? "Remove this unsaved FAQ?"
+      : "Delete this FAQ? (You’ll still need to click “Save changes” to apply.)";
+
+    if (!confirm(message)) return;
+
+    if (isNew) {
+      setFaqDraftById((prev) => {
+        if (!(id in prev)) return prev;
+        const { [id]: _removed, ...rest } = prev;
+        return rest;
+      });
+      return;
     }
+
+    setFaqDraftById((prev) => {
+      if (!(id in prev)) return prev;
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+    setDeletedFaqIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
+
+  const pendingFaqBatch = useMemo(() => {
+    const upserts: Array<{
+      id: string;
+      sectionId: string;
+      question: string;
+      answer: string;
+      notes: string;
+    }> = [];
+
+    let created = 0;
+    let updated = 0;
+
+    for (const draft of Object.values(faqDraftById)) {
+      if (deletedFaqIds.has(draft.id)) continue;
+      const base = baseFaqById.get(draft.id);
+
+      if (base) {
+        const matchesBase =
+          draft.sectionId === base.sectionId &&
+          draft.question === base.question &&
+          draft.answer === base.answer &&
+          draft.notes === base.notes;
+        if (matchesBase) continue;
+        updated += 1;
+      } else {
+        created += 1;
+      }
+
+      upserts.push({
+        id: draft.id,
+        sectionId: draft.sectionId,
+        question: draft.question,
+        answer: draft.answer,
+        notes: draft.notes,
+      });
+    }
+
+    const deletes = Array.from(deletedFaqIds).filter((id) => baseFaqById.has(id));
+
+    return {
+      upserts,
+      deletes,
+      created,
+      updated,
+      deleted: deletes.length,
+    };
+  }, [faqDraftById, deletedFaqIds, baseFaqById]);
+
+  const hasPendingFaqChanges =
+    pendingFaqBatch.upserts.length > 0 || pendingFaqBatch.deletes.length > 0;
+
+  const handleSaveFaqChanges = async () => {
+    if (isSavingFaqBatch || !hasPendingFaqChanges) return;
+    setIsSavingFaqBatch(true);
+    try {
+      await applyFaqBatch({
+        upserts: pendingFaqBatch.upserts,
+        deletes: pendingFaqBatch.deletes,
+      });
+      setFaqDraftById({});
+      setDeletedFaqIds(new Set());
+      setFaqDraftResetSignal((n) => n + 1);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save FAQ changes. Please try again.");
+    } finally {
+      setIsSavingFaqBatch(false);
+    }
+  };
+
+  const handleDiscardFaqChanges = () => {
+    if (!hasPendingFaqChanges) return;
+    if (!confirm("Discard all unsaved FAQ changes?")) return;
+    setFaqDraftById({});
+    setDeletedFaqIds(new Set());
+    setFaqDraftResetSignal((n) => n + 1);
   };
 
   if (!mounted) {
@@ -161,11 +329,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className={`max-w-7xl mx-auto px-4 py-6 ${hasPendingFaqChanges ? "pb-28" : ""}`}>
         <header className="mb-6">
           <h1 className="text-3xl font-bold mb-1">Knowledge Base</h1>
           <p className="text-muted-foreground">
-            Click any cell to edit · Markdown supported
+            Click any cell to edit · Markdown supported · Changes save when you click “Save changes”
           </p>
         </header>
 
@@ -199,6 +367,7 @@ export default function Home() {
             key={section.id}
             section={section}
             faqs={getFaqsForSection(section.id)}
+            resetSignal={faqDraftResetSignal}
             onUpdateSection={handleUpdateSection}
             onDeleteSection={handleDeleteSection}
             onCreateFaq={handleCreateFaq}
@@ -260,9 +429,37 @@ export default function Home() {
           onOpenChange={setShowExportModal}
           variables={variables}
           sections={sections}
-          faqs={faqs}
+          faqs={effectiveFaqs}
         />
       </div>
+
+      {hasPendingFaqChanges && (
+        <div className="fixed inset-x-0 bottom-4 z-50 px-4">
+          <div className="mx-auto max-w-3xl">
+            <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-medium text-sm">Unsaved changes</div>
+                <div className="text-xs text-muted-foreground">
+                  {pendingFaqBatch.created} new · {pendingFaqBatch.updated} edited ·{" "}
+                  {pendingFaqBatch.deleted} deleted
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={handleDiscardFaqChanges}
+                  disabled={isSavingFaqBatch}
+                >
+                  Discard
+                </Button>
+                <Button onClick={handleSaveFaqChanges} disabled={isSavingFaqBatch}>
+                  {isSavingFaqBatch ? "Saving..." : "Save changes"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

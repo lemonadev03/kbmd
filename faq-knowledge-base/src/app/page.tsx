@@ -337,6 +337,7 @@ export default function Home() {
             key={section.id}
             section={section}
             faqs={getFaqsForSection(section.id)}
+            resetSignal={0}
             onUpdateSection={handleUpdateSection}
             onDeleteSection={handleDeleteSection}
             onCreateFaq={handleCreateFaq}

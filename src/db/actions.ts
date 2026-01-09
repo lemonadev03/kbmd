@@ -1,7 +1,7 @@
 "use server";
 
 import { db, variables, sections, faqs } from "./index";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // Variable actions
@@ -101,6 +101,56 @@ export async function updateFaq(
 export async function deleteFaq(id: string) {
   await db.delete(faqs).where(eq(faqs.id, id));
   revalidatePath("/");
+}
+
+type FaqUpsertInput = {
+  id: string;
+  sectionId: string;
+  question: string;
+  answer: string;
+  notes: string;
+};
+
+export async function applyFaqBatch(params: {
+  upserts: FaqUpsertInput[];
+  deletes: string[];
+}) {
+  const { upserts, deletes } = params;
+
+  if (upserts.length === 0 && deletes.length === 0) {
+    return { upserted: 0, deleted: 0 };
+  }
+
+  if (upserts.length > 0) {
+    await db
+      .insert(faqs)
+      .values(
+        upserts.map((f) => ({
+          id: f.id,
+          sectionId: f.sectionId,
+          question: f.question,
+          answer: f.answer,
+          notes: f.notes,
+        }))
+      )
+      .onConflictDoUpdate({
+        target: faqs.id,
+        set: {
+          sectionId: sql`excluded.section_id`,
+          question: sql`excluded.question`,
+          answer: sql`excluded.answer`,
+          notes: sql`excluded.notes`,
+          updatedAt: new Date(),
+        },
+      });
+  }
+
+  if (deletes.length > 0) {
+    await db.delete(faqs).where(inArray(faqs.id, deletes));
+  }
+
+  revalidatePath("/");
+  return { upserted: upserts.length, deleted: deletes.length };
 }
 
 // Export helper - get all data
