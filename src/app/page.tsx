@@ -236,8 +236,14 @@ export default function Home() {
   };
 
   const handleUpdateSection = async (id: string, name: string) => {
-    await updateSection(id, name);
-    refreshData();
+    try {
+      await updateSection(id, name);
+      refreshData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to rename section. Please try again.");
+      refreshData();
+    }
   };
 
   const handleReorderSections = async (orderedIds: string[]) => {
@@ -566,6 +572,7 @@ export default function Home() {
         activeSection={activeSection}
         onNavigate={scrollToSection}
         onReorderSections={handleReorderSections}
+        onRenameSection={handleUpdateSection}
         faqCounts={faqCounts}
         loading={isLoading}
         userEmail={session.data?.user?.email}
