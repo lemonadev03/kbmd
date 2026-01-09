@@ -5,9 +5,16 @@ import { FAQSection } from "@/components/faq-section";
 import { VariablesSection } from "@/components/variables-section";
 import { CustomRulesSection } from "@/components/custom-rules-section";
 import { ExportModal } from "@/components/export-modal";
+import { Sidebar, SidebarToggle } from "@/components/sidebar";
+import { useSidebar } from "@/hooks/use-sidebar";
+import { useActiveSection } from "@/hooks/use-active-section";
+import { useSearchNavigation } from "@/hooks/use-search-navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Download, Plus } from "lucide-react";
+import { Search, Download, Plus, ChevronUp, ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { LoadingSkeleton } from "@/components/loading-skeleton";
+import { ContentSkeleton } from "@/components/content-skeleton";
 import {
   getVariables,
   createVariable,
@@ -56,6 +63,7 @@ export default function Home() {
   const [variables, setVariables] = useState<Variable[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [newSectionName, setNewSectionName] = useState("");
   const [showNewSection, setShowNewSection] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -64,22 +72,30 @@ export default function Home() {
   const [customRulesResetSignal, setCustomRulesResetSignal] = useState(0);
   const [isSavingCustomRules, setIsSavingCustomRules] = useState(false);
 
-  const refreshData = async () => {
-    const [vars, sects, faqList, rules] = await Promise.all([
-      getVariables(),
-      getSections(),
-      getFaqs(),
-      getCustomRules(),
-    ]);
-    setVariables(vars);
-    setSections(sects);
-    setFaqs(faqList);
-    setCustomRulesContent(rules?.content ?? "");
+  const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
+  const { activeSection, scrollToSection } = useActiveSection(sections);
+
+  const refreshData = async (initialLoad = false) => {
+    if (initialLoad) setIsLoading(true);
+    try {
+      const [vars, sects, faqList, rules] = await Promise.all([
+        getVariables(),
+        getSections(),
+        getFaqs(),
+        getCustomRules(),
+      ]);
+      setVariables(vars);
+      setSections(sects);
+      setFaqs(faqList);
+      setCustomRulesContent(rules?.content ?? "");
+    } finally {
+      if (initialLoad) setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     setMounted(true);
-    refreshData();
+    refreshData(true);
   }, []);
 
   const baseFaqById = useMemo(() => {
@@ -113,6 +129,24 @@ export default function Home() {
           faq.notes.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : effectiveFaqs;
+
+  const {
+    totalMatches,
+    currentIndex: currentMatchIndex,
+    currentMatchId,
+    goToNext,
+    goToPrev,
+  } = useSearchNavigation(filteredFaqs, sections, searchQuery);
+
+  const faqCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const section of sections) {
+      counts[section.id] = effectiveFaqs.filter(
+        (f) => f.sectionId === section.id
+      ).length;
+    }
+    return counts;
+  }, [sections, effectiveFaqs]);
 
   const getFaqsForSection = (sectionId: string) => {
     return filteredFaqs.filter((faq) => faq.sectionId === sectionId);
@@ -378,142 +412,253 @@ export default function Home() {
   };
 
   if (!mounted) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className={`max-w-7xl mx-auto px-4 py-6 ${hasPendingFaqChanges || hasPendingCustomRulesChanges ? "pb-28" : ""}`}>
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold mb-1">Knowledge Base</h1>
-          <p className="text-muted-foreground">
-            Click any cell to edit · Markdown supported · Changes save when you click “Save changes”
-          </p>
-        </header>
+      {/* Sidebar */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={toggleSidebar}
+        sections={sections}
+        activeSection={activeSection}
+        onNavigate={scrollToSection}
+        faqCounts={faqCounts}
+        loading={isLoading}
+      />
 
-        <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search FAQs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+      {/* Toggle Button */}
+      <SidebarToggle isOpen={sidebarOpen} onToggle={toggleSidebar} />
+
+      {/* Main Content */}
+      <main className={cn(sidebarOpen ? "lg:ml-64" : "ml-0")}>
+        <div
+          className={cn(
+            "max-w-7xl mx-auto px-4 py-6",
+            hasPendingFaqChanges || hasPendingCustomRulesChanges ? "pb-28" : ""
+          )}
+        >
+          <header className="mb-6">
+            <h1 className="text-3xl font-bold mb-1">Knowledge Base</h1>
+            <p className="text-muted-foreground">
+              Click any cell to edit · Markdown supported · Changes save when
+              you click "Save changes"
+            </p>
+          </header>
+
+          <div className="flex gap-4 mb-6 sticky top-0 z-20 bg-background py-2 -mt-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search FAQs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                      goToPrev();
+                    } else {
+                      goToNext();
+                    }
+                  }
+                  if (e.key === "Escape") {
+                    setSearchQuery("");
+                  }
+                }}
+                className={cn("pl-10", searchQuery && "pr-36")}
+              />
+              {searchQuery && (
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground tabular-nums min-w-[4rem] text-right">
+                    {totalMatches > 0
+                      ? `${currentMatchIndex} of ${totalMatches}`
+                      : "No matches"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={goToPrev}
+                    disabled={totalMatches === 0}
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={goToNext}
+                    disabled={totalMatches === 0}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <Button variant="outline" onClick={() => setShowExportModal(true)}>
+              <Download className="h-4 w-4 mr-2" />
+              Export MD
+            </Button>
           </div>
-          <Button variant="outline" onClick={() => setShowExportModal(true)}>
-            <Download className="h-4 w-4 mr-2" />
-            Export MD
-          </Button>
-        </div>
 
-        {/* Custom Rules */}
-        <CustomRulesSection
-          content={customRulesContent}
-          onUpdate={handleUpdateCustomRules}
-          resetSignal={customRulesResetSignal}
-        />
+          {isLoading ? (
+            <ContentSkeleton />
+          ) : (
+            <>
+              {/* Custom Rules */}
+              <div id="section-custom-rules" className="scroll-mt-4">
+                <CustomRulesSection
+                  content={customRulesContent}
+                  onUpdate={handleUpdateCustomRules}
+                  resetSignal={customRulesResetSignal}
+                  searchQuery={searchQuery}
+                  currentMatchId={currentMatchId}
+                />
+              </div>
 
-        {/* Variables */}
-        <VariablesSection
-          variables={variables}
-          onCreate={handleCreateVariable}
-          onUpdate={handleUpdateVariable}
-          onDelete={handleDeleteVariable}
-        />
+              {/* Variables */}
+              <div id="section-variables" className="scroll-mt-4">
+                <VariablesSection
+                  variables={variables}
+                  onCreate={handleCreateVariable}
+                  onUpdate={handleUpdateVariable}
+                  onDelete={handleDeleteVariable}
+                  searchQuery={searchQuery}
+                  currentMatchId={currentMatchId}
+                />
+              </div>
 
-        {/* Sections */}
-        {sections.map((section) => (
-          <FAQSection
-            key={section.id}
-            section={section}
-            faqs={getFaqsForSection(section.id)}
-            resetSignal={faqDraftResetSignal}
-            onUpdateSection={handleUpdateSection}
-            onDeleteSection={handleDeleteSection}
-            onCreateFaq={handleCreateFaq}
-            onUpdateFaq={handleUpdateFaq}
-            onDeleteFaq={handleDeleteFaq}
-          />
-        ))}
+              {/* Sections */}
+              {sections.map((section, index) => (
+                <div key={section.id}>
+                  {index > 0 && (
+                    <div
+                      className="group flex items-center gap-2 py-1 my-2 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+                      onClick={() => setShowNewSection(true)}
+                    >
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        Add section
+                      </span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                  )}
+                  <div id={`section-faq-${section.id}`} className="scroll-mt-4">
+                    <FAQSection
+                      section={section}
+                      faqs={getFaqsForSection(section.id)}
+                      resetSignal={faqDraftResetSignal}
+                      onUpdateSection={handleUpdateSection}
+                      onDeleteSection={handleDeleteSection}
+                      onCreateFaq={handleCreateFaq}
+                      onUpdateFaq={handleUpdateFaq}
+                      onDeleteFaq={handleDeleteFaq}
+                      searchQuery={searchQuery}
+                      currentMatchId={currentMatchId}
+                    />
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
 
         {/* Add Section */}
-        {showNewSection ? (
-          <div className="flex items-center gap-2 mb-8">
-            <Input
-              value={newSectionName}
-              onChange={(e) => setNewSectionName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreateSection();
-                if (e.key === "Escape") {
-                  setShowNewSection(false);
-                  setNewSectionName("");
-                }
-              }}
-              placeholder="Section name..."
-              autoFocus
-              className="w-64"
-            />
-            <Button onClick={handleCreateSection} disabled={!newSectionName.trim()}>
-              Add
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowNewSection(false);
-                setNewSectionName("");
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            onClick={() => setShowNewSection(true)}
-            className="mb-8"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Section
-          </Button>
+        {!isLoading && (
+          <>
+            {showNewSection ? (
+              <div className="flex items-center gap-2 mb-8">
+                <Input
+                  value={newSectionName}
+                  onChange={(e) => setNewSectionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCreateSection();
+                    if (e.key === "Escape") {
+                      setShowNewSection(false);
+                      setNewSectionName("");
+                    }
+                  }}
+                  placeholder="Section name..."
+                  autoFocus
+                  className="w-64"
+                />
+                <Button onClick={handleCreateSection} disabled={!newSectionName.trim()}>
+                  Add
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewSection(false);
+                    setNewSectionName("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => setShowNewSection(true)}
+                className="mb-8"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Section
+              </Button>
+            )}
+
+            {sections.length === 0 && !showNewSection && (
+              <div className="text-center py-12 text-muted-foreground">
+                No sections yet. Create your first section to get started!
+              </div>
+            )}
+          </>
         )}
 
-        {sections.length === 0 && !showNewSection && (
-          <div className="text-center py-12 text-muted-foreground">
-            No sections yet. Create your first section to get started!
-          </div>
-        )}
-
-        {/* Export Modal */}
-        <ExportModal
-          open={showExportModal}
-          onOpenChange={setShowExportModal}
-          variables={variables}
-          sections={sections}
-          faqs={effectiveFaqs}
-          customRules={customRulesContent}
-        />
-      </div>
+          {/* Export Modal */}
+          <ExportModal
+            open={showExportModal}
+            onOpenChange={setShowExportModal}
+            variables={variables}
+            sections={sections}
+            faqs={effectiveFaqs}
+            customRules={customRulesContent}
+          />
+        </div>
+      </main>
 
       {hasPendingFaqChanges && (
-        <div className="fixed inset-x-0 z-50 px-4" style={{ bottom: hasPendingCustomRulesChanges ? '7rem' : '1rem' }}>
+        <div
+          className={cn(
+            "fixed z-50 px-4 right-0",
+            sidebarOpen ? "lg:left-64" : "left-0"
+          )}
+          style={{ bottom: hasPendingCustomRulesChanges ? "7rem" : "1rem" }}
+        >
           <div className="mx-auto max-w-3xl">
             <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-medium text-sm">Unsaved changes</div>
                 <div className="text-xs text-muted-foreground">
-                  {pendingFaqBatch.created} new · {pendingFaqBatch.updated} edited ·{" "}
-                  {pendingFaqBatch.deleted} deleted
+                  {pendingFaqBatch.created} new · {pendingFaqBatch.updated}{" "}
+                  edited · {pendingFaqBatch.deleted} deleted
                 </div>
                 {pendingFaqBatch.incompleteUpserts.length > 0 && (
                   <div className="text-xs text-destructive mt-1">
                     {pendingFaqBatch.incompleteUpserts.length} item
-                    {pendingFaqBatch.incompleteUpserts.length !== 1 ? "s" : ""} missing
-                    question/answer
+                    {pendingFaqBatch.incompleteUpserts.length !== 1
+                      ? "s"
+                      : ""}{" "}
+                    missing question/answer
                   </div>
                 )}
               </div>
@@ -538,7 +683,12 @@ export default function Home() {
       )}
 
       {hasPendingCustomRulesChanges && (
-        <div className="fixed inset-x-0 bottom-4 z-50 px-4">
+        <div
+          className={cn(
+            "fixed bottom-4 z-50 px-4 right-0",
+            sidebarOpen ? "lg:left-64" : "left-0"
+          )}
+        >
           <div className="mx-auto max-w-3xl">
             <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">

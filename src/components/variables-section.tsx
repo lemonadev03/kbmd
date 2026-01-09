@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { HighlightText } from "./highlight-text";
 
 interface Variable {
   id: string;
@@ -16,6 +17,8 @@ interface VariablesSectionProps {
   onCreate: (key: string, value: string) => void;
   onUpdate: (id: string, key: string, value: string) => void;
   onDelete: (id: string) => void;
+  searchQuery?: string;
+  currentMatchId?: string | null;
 }
 
 export function VariablesSection({
@@ -23,6 +26,8 @@ export function VariablesSection({
   onCreate,
   onUpdate,
   onDelete,
+  searchQuery = "",
+  currentMatchId = null,
 }: VariablesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,7 +68,7 @@ export function VariablesSection({
   return (
     <div className="mb-6 border rounded-lg">
       <div
-        className="flex items-center gap-2 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-2 p-3 cursor-pointer hover:bg-muted/50 transition-colors sticky top-12 z-10 bg-background rounded-t-lg"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         {isExpanded ? (
@@ -71,7 +76,18 @@ export function VariablesSection({
         ) : (
           <ChevronRight className="h-4 w-4" />
         )}
-        <span className="font-medium">Variables</span>
+        <span className="font-medium">
+          {searchQuery ? (
+            <HighlightText
+              text="Variables"
+              query={searchQuery}
+              currentMatchId={currentMatchId ?? undefined}
+              matchIdPrefix="match-title-variables"
+            />
+          ) : (
+            "Variables"
+          )}
+        </span>
         <span className="text-muted-foreground text-sm">({variables.length})</span>
       </div>
 

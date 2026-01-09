@@ -7,17 +7,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, FileText, Eye, Edit } from "lucide-react";
+import { HighlightText } from "./highlight-text";
 
 interface CustomRulesSectionProps {
   content: string;
   onUpdate: (content: string) => void;
   resetSignal: number;
+  searchQuery?: string;
+  currentMatchId?: string | null;
 }
 
 export function CustomRulesSection({
   content,
   onUpdate,
   resetSignal,
+  searchQuery = "",
+  currentMatchId = null,
 }: CustomRulesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [editValue, setEditValue] = useState(content);
@@ -36,7 +41,7 @@ export function CustomRulesSection({
   return (
     <Card className="mb-6">
       <CardHeader
-        className="cursor-pointer select-none py-3"
+        className="cursor-pointer select-none py-3 sticky top-12 z-10 bg-card rounded-t-lg"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <CardTitle className="flex items-center gap-2 text-lg">
@@ -46,7 +51,16 @@ export function CustomRulesSection({
             <ChevronRight className="h-5 w-5" />
           )}
           <FileText className="h-5 w-5" />
-          Custom Rules
+          {searchQuery ? (
+            <HighlightText
+              text="Custom Rules"
+              query={searchQuery}
+              currentMatchId={currentMatchId ?? undefined}
+              matchIdPrefix="match-title-custom-rules"
+            />
+          ) : (
+            "Custom Rules"
+          )}
         </CardTitle>
       </CardHeader>
 

@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Trash2, Plus } from "lucide-react";
+import { HighlightText } from "./highlight-text";
 
 interface FAQ {
   id: string;
@@ -27,6 +28,8 @@ interface FAQTableProps {
   onCreate: (data: FAQFormData) => void;
   onDelete: (id: string) => void;
   resetSignal: number;
+  searchQuery?: string;
+  currentMatchId?: string | null;
 }
 
 interface EditingCell {
@@ -40,6 +43,8 @@ export function FAQTable({
   onCreate,
   onDelete,
   resetSignal,
+  searchQuery = "",
+  currentMatchId = null,
 }: FAQTableProps) {
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -187,15 +192,26 @@ export function FAQTable({
       );
     }
 
+    const matchIdPrefix = `match-${faq.id}-${field}`;
+
     return (
       <div
         className={`${width} p-3 border-r last:border-r-0 cursor-text hover:bg-muted/50 transition-colors`}
         onClick={() => startEdit(faq, field)}
       >
-        <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {faq[field] || "*Click to add*"}
-          </ReactMarkdown>
+        <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
+          {searchQuery ? (
+            <HighlightText
+              text={faq[field] || "Click to add"}
+              query={searchQuery}
+              currentMatchId={currentMatchId ?? undefined}
+              matchIdPrefix={matchIdPrefix}
+            />
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {faq[field] || "*Click to add*"}
+            </ReactMarkdown>
+          )}
         </div>
       </div>
     );
@@ -236,10 +252,19 @@ export function FAQTable({
                   </div>
                 </div>
               ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em]">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {faq.notes || "*Click to add*"}
-                  </ReactMarkdown>
+                <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
+                  {searchQuery ? (
+                    <HighlightText
+                      text={faq.notes || "Click to add"}
+                      query={searchQuery}
+                      currentMatchId={currentMatchId ?? undefined}
+                      matchIdPrefix={`match-${faq.id}-notes`}
+                    />
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {faq.notes || "*Click to add*"}
+                    </ReactMarkdown>
+                  )}
                 </div>
               )}
             </div>

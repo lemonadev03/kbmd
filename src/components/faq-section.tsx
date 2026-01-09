@@ -5,6 +5,7 @@ import { FAQTable } from "./faq-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Pencil, Check, X } from "lucide-react";
+import { HighlightText } from "./highlight-text";
 
 interface Section {
   id: string;
@@ -34,6 +35,8 @@ interface FAQSectionProps {
   onCreateFaq: (sectionId: string, data: FAQFormData) => void;
   onUpdateFaq: (id: string, data: FAQFormData) => void;
   onDeleteFaq: (id: string) => void;
+  searchQuery?: string;
+  currentMatchId?: string | null;
 }
 
 export function FAQSection({
@@ -45,6 +48,8 @@ export function FAQSection({
   onCreateFaq,
   onUpdateFaq,
   onDeleteFaq,
+  searchQuery,
+  currentMatchId,
 }: FAQSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(section.name);
@@ -71,7 +76,7 @@ export function FAQSection({
 
   return (
     <div className="mb-8">
-      <div className="flex items-center gap-2 mb-3 group">
+      <div className="flex items-center gap-2 mb-3 group sticky top-12 z-10 bg-background py-2">
         {isEditing ? (
           <div className="flex items-center gap-2">
             <Input
@@ -90,7 +95,18 @@ export function FAQSection({
           </div>
         ) : (
           <>
-            <h2 className="text-xl font-semibold">{section.name}</h2>
+            <h2 className="text-xl font-semibold">
+              {searchQuery ? (
+                <HighlightText
+                  text={section.name}
+                  query={searchQuery}
+                  currentMatchId={currentMatchId ?? undefined}
+                  matchIdPrefix={`match-section-name-${section.id}`}
+                />
+              ) : (
+                section.name
+              )}
+            </h2>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button
                 size="icon"
@@ -119,6 +135,8 @@ export function FAQSection({
         onCreate={(data) => onCreateFaq(section.id, data)}
         onUpdate={onUpdateFaq}
         onDelete={onDeleteFaq}
+        searchQuery={searchQuery}
+        currentMatchId={currentMatchId}
       />
     </div>
   );
