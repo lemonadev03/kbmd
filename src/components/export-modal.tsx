@@ -28,6 +28,7 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
+  order: number;
 }
 
 interface ExportModalProps {
@@ -100,7 +101,9 @@ export function ExportModal({
     for (const section of sections) {
       if (!selectedSections.has(section.id)) continue;
 
-      const sectionFaqs = faqs.filter((f) => f.sectionId === section.id);
+      const sectionFaqs = [...faqs.filter((f) => f.sectionId === section.id)].sort(
+        (a, b) => (a.order - b.order) || a.id.localeCompare(b.id)
+      );
       md += `# ${section.name}\n\n`;
 
       if (sectionFaqs.length === 0) {

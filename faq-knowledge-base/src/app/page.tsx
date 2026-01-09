@@ -42,6 +42,7 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
+  order: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,7 +52,6 @@ export default function Home() {
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [variables, setVariables] = useState<Variable[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [mounted, setMounted] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
   const [showNewSection, setShowNewSection] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -68,7 +68,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    setMounted(true);
     loadData();
   }, [loadData]);
 
@@ -82,7 +81,8 @@ export default function Home() {
     : faqs;
 
   const getFaqsForSection = (sectionId: string) => {
-    return filteredFaqs.filter((faq) => faq.sectionId === sectionId);
+    const inSection = filteredFaqs.filter((faq) => faq.sectionId === sectionId);
+    return [...inSection].sort((a, b) => (a.order - b.order) || a.id.localeCompare(b.id));
   };
 
   // Variable handlers - optimistic
@@ -222,12 +222,18 @@ export default function Home() {
   ) => {
     const tempId = uuidv4();
     const now = new Date();
+    const nextOrder =
+      Math.max(
+        -1,
+        ...faqs.filter((f) => f.sectionId === sectionId).map((f) => f.order)
+      ) + 1;
     const newFaq: FAQ = {
       id: tempId,
       sectionId,
       question: data.question,
       answer: data.answer,
       notes: data.notes,
+      order: nextOrder,
       createdAt: now,
       updatedAt: now,
     };
@@ -288,14 +294,6 @@ export default function Home() {
       }
     }
   };
-
-  if (!mounted) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-pulse">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">

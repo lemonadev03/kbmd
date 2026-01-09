@@ -18,6 +18,7 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
+  order: number;
 }
 
 interface FAQFormData {
@@ -35,6 +36,8 @@ interface FAQSectionProps {
   onCreateFaq: (sectionId: string, data: FAQFormData) => void;
   onUpdateFaq: (id: string, data: FAQFormData) => void;
   onDeleteFaq: (id: string) => void;
+  onReorderFaqs?: (sectionId: string, orderedIds: string[]) => void;
+  reorderDisabled?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
 }
@@ -48,6 +51,8 @@ export function FAQSection({
   onCreateFaq,
   onUpdateFaq,
   onDeleteFaq,
+  onReorderFaqs,
+  reorderDisabled,
   searchQuery,
   currentMatchId,
 }: FAQSectionProps) {
@@ -130,11 +135,14 @@ export function FAQSection({
       </div>
 
       <FAQTable
+        sectionId={section.id}
+        key={`${section.id}-${resetSignal}`}
         faqs={faqs}
-        resetSignal={resetSignal}
         onCreate={(data) => onCreateFaq(section.id, data)}
         onUpdate={onUpdateFaq}
         onDelete={onDeleteFaq}
+        onReorderFaqs={onReorderFaqs}
+        reorderDisabled={reorderDisabled}
         searchQuery={searchQuery}
         currentMatchId={currentMatchId}
       />

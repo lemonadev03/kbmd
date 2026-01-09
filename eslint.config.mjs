@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Legacy/unused sub-app (kept for reference)
+    "faq-knowledge-base/**",
   ]),
 ]);
 

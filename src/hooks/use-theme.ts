@@ -25,12 +25,14 @@ export function useTheme() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     const initial =
       stored === "light" || stored === "dark" ? stored : getSystemTheme();
-    setTheme(initial);
     applyTheme(initial);
+    queueMicrotask(() => {
+      setTheme(initial);
+      setMounted(true);
+    });
   }, []);
 
   const updateTheme = useCallback((next: Theme) => {

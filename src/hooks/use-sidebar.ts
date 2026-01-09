@@ -1,30 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const SIDEBAR_STORAGE_KEY = "kb-sidebar-open";
 
 export function useSidebar() {
   const [isOpen, setIsOpen] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
     const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
     if (stored !== null) {
-      setIsOpen(stored === "true");
+      queueMicrotask(() => setIsOpen(stored === "true"));
     }
+    hasLoadedRef.current = true;
   }, []);
 
   useEffect(() => {
-    if (mounted) {
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(isOpen));
-    }
-  }, [isOpen, mounted]);
+    if (!hasLoadedRef.current) return;
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, String(isOpen));
+  }, [isOpen]);
 
   const toggle = useCallback(() => setIsOpen((prev) => !prev), []);
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
 
-  return { isOpen, toggle, open, close, mounted };
+  return { isOpen, toggle, open, close };
 }

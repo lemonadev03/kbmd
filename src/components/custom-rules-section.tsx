@@ -29,7 +29,7 @@ export function CustomRulesSection({
 
   // Reset local state when resetSignal changes (discard was clicked)
   useEffect(() => {
-    setEditValue(content);
+    queueMicrotask(() => setEditValue(content));
   }, [resetSignal, content]);
 
   const handleChange = (value: string) => {

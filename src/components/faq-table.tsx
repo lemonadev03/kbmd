@@ -1,11 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, Copy, Plus, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Check, Copy, GripVertical, Plus, Trash2 } from "lucide-react";
 import { HighlightText } from "./highlight-text";
 import { copyToClipboard } from "@/lib/clipboard";
 
@@ -15,6 +31,7 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
+  order: number;
 }
 
 interface FAQFormData {
@@ -24,11 +41,13 @@ interface FAQFormData {
 }
 
 interface FAQTableProps {
+  sectionId: string;
   faqs: FAQ[];
   onUpdate: (id: string, data: FAQFormData) => void;
   onCreate: (data: FAQFormData) => void;
   onDelete: (id: string) => void;
-  resetSignal: number;
+  onReorderFaqs?: (sectionId: string, orderedIds: string[]) => void;
+  reorderDisabled?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
 }
@@ -63,19 +82,9 @@ function FAQCell({
   searchQuery: string;
   currentMatchId: string | null;
 }) {
-  const [copied, setCopied] = useState(false);
-
   const value = faq[field] || "";
-
-  useEffect(() => {
-    if (!copied) return;
-    const t = window.setTimeout(() => setCopied(false), 1000);
-    return () => window.clearTimeout(t);
-  }, [copied]);
-
-  useEffect(() => {
-    setCopied(false);
-  }, [value]);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const copied = copiedValue === value;
 
   if (isEditing) {
     return (
@@ -143,7 +152,10 @@ function FAQCell({
                 e.stopPropagation();
                 if (copyDisabled) return;
                 const ok = await copyToClipboard(value);
-                if (ok) setCopied(true);
+                if (ok) {
+                  setCopiedValue(value);
+                  window.setTimeout(() => setCopiedValue(null), 1000);
+                }
               }}
             >
               {copied ? (
@@ -165,12 +177,85 @@ function FAQCell({
   );
 }
 
+function SortableFAQRow({
+  faq,
+  children,
+  onDelete,
+  reorderEnabled,
+  reorderDisabledReason,
+}: {
+  faq: FAQ;
+  children: ReactNode;
+  onDelete: () => void;
+  reorderEnabled: boolean;
+  reorderDisabledReason: string;
+}) {
+  const {
+    setNodeRef,
+    setActivatorNodeRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: faq.id, disabled: !reorderEnabled });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      className={cn(
+        "flex border-b border-border/60 last:border-b-0 group/row",
+        isDragging && "opacity-70"
+      )}
+    >
+      {children}
+      <div className="w-12 p-2 flex flex-col items-center justify-center gap-1">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          className={cn(
+            "h-8 w-8 rounded-md flex items-center justify-center transition-colors",
+            reorderEnabled
+              ? "opacity-0 group-hover/row:opacity-100 hover:bg-muted/60 cursor-grab active:cursor-grabbing"
+              : "opacity-0 group-hover/row:opacity-60 cursor-not-allowed"
+          )}
+          title={reorderEnabled ? "Drag to reorder" : reorderDisabledReason}
+          aria-label={reorderEnabled ? "Drag to reorder" : reorderDisabledReason}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          {...attributes}
+          {...(reorderEnabled ? listeners : {})}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </button>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="opacity-0 group-hover/row:opacity-100 transition-opacity"
+          title="Delete"
+          aria-label="Delete"
+          onClick={() => onDelete()}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function FAQTable({
+  sectionId,
   faqs,
   onUpdate,
   onCreate,
   onDelete,
-  resetSignal,
+  onReorderFaqs,
+  reorderDisabled,
   searchQuery = "",
   currentMatchId = null,
 }: FAQTableProps) {
@@ -185,14 +270,6 @@ export function FAQTable({
   const [newRowErrorsById, setNewRowErrorsById] = useState<Record<string, true>>(
     {}
   );
-
-  useEffect(() => {
-    setEditingCell(null);
-    setEditValue("");
-    setNewRows([]);
-    setAutoFocusNewRowId(null);
-    setNewRowErrorsById({});
-  }, [resetSignal]);
 
   const startEdit = (faq: FAQ, field: "question" | "answer" | "notes") => {
     setEditingCell({ id: faq.id, field });
@@ -243,8 +320,9 @@ export function FAQTable({
     setNewRows((prev) => prev.filter((r) => r.tempId !== tempId));
     setNewRowErrorsById((prev) => {
       if (!prev[tempId]) return prev;
-      const { [tempId]: _removed, ...rest } = prev;
-      return rest;
+      const next = { ...prev };
+      delete next[tempId];
+      return next;
     });
     setAutoFocusNewRowId((prev) => (prev === tempId ? null : prev));
   };
@@ -292,6 +370,44 @@ export function FAQTable({
     }
   };
 
+  const canUseDnD = Boolean(onReorderFaqs);
+  const reorderEnabled =
+    canUseDnD &&
+    !reorderDisabled &&
+    searchQuery.trim().length === 0 &&
+    editingCell === null &&
+    newRows.length === 0 &&
+    faqs.length > 1;
+
+  const reorderDisabledReason = useMemo(() => {
+    if (!canUseDnD) return "Reordering unavailable";
+    if (reorderDisabled) return "Reordering disabled";
+    if (searchQuery.trim().length > 0) return "Clear search to reorder";
+    if (editingCell !== null) return "Finish editing to reorder";
+    if (newRows.length > 0) return "Finish adding new FAQs to reorder";
+    if (faqs.length <= 1) return "Not enough rows to reorder";
+    return "Reordering disabled";
+  }, [canUseDnD, reorderDisabled, searchQuery, editingCell, newRows.length, faqs.length]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!canUseDnD) return;
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
+
+    const ids = faqs.map((f) => f.id);
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const orderedIds = arrayMove(ids, oldIndex, newIndex);
+    onReorderFaqs?.(sectionId, orderedIds);
+  };
+
   return (
     <div className="rounded-2xl border bg-card/80 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -311,66 +427,141 @@ export function FAQTable({
           </div>
 
           {/* Rows */}
-          {faqs.map((faq) => (
-            <div
-              key={faq.id}
-              className="flex border-b border-border/60 last:border-b-0 group/row"
+          {canUseDnD ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
-              <FAQCell
-                faq={faq}
-                field="question"
-                widthClass="w-[30%]"
-                isEditing={
-                  editingCell?.id === faq.id && editingCell?.field === "question"
-                }
-                editValue={editValue}
-                onStartEdit={startEdit}
-                onEditChange={handleEditChange}
-                onFinishEdit={finishEdit}
-                onKeyDown={handleKeyDown}
-                searchQuery={searchQuery}
-                currentMatchId={currentMatchId}
-              />
-              <FAQCell
-                faq={faq}
-                field="answer"
-                widthClass="w-[40%]"
-                isEditing={editingCell?.id === faq.id && editingCell?.field === "answer"}
-                editValue={editValue}
-                onStartEdit={startEdit}
-                onEditChange={handleEditChange}
-                onFinishEdit={finishEdit}
-                onKeyDown={handleKeyDown}
-                searchQuery={searchQuery}
-                currentMatchId={currentMatchId}
-              />
-              <FAQCell
-                faq={faq}
-                field="notes"
-                widthClass="w-[calc(30%-3rem)]"
-                isEditing={editingCell?.id === faq.id && editingCell?.field === "notes"}
-                editValue={editValue}
-                onStartEdit={startEdit}
-                onEditChange={handleEditChange}
-                onFinishEdit={finishEdit}
-                onKeyDown={handleKeyDown}
-                searchQuery={searchQuery}
-                currentMatchId={currentMatchId}
-              />
-              <div className="w-12 p-2 flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="opacity-0 group-hover/row:opacity-100 transition-opacity"
-                  title="Delete"
-                  aria-label="Delete"
-                  onClick={() => onDelete(faq.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+              <SortableContext
+                items={faqs.map((f) => f.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {faqs.map((faq) => (
+                  <SortableFAQRow
+                    key={faq.id}
+                    faq={faq}
+                    reorderEnabled={reorderEnabled}
+                    reorderDisabledReason={reorderDisabledReason}
+                    onDelete={() => onDelete(faq.id)}
+                  >
+                    <FAQCell
+                      faq={faq}
+                      field="question"
+                      widthClass="w-[30%]"
+                      isEditing={
+                        editingCell?.id === faq.id &&
+                        editingCell?.field === "question"
+                      }
+                      editValue={editValue}
+                      onStartEdit={startEdit}
+                      onEditChange={handleEditChange}
+                      onFinishEdit={finishEdit}
+                      onKeyDown={handleKeyDown}
+                      searchQuery={searchQuery}
+                      currentMatchId={currentMatchId}
+                    />
+                    <FAQCell
+                      faq={faq}
+                      field="answer"
+                      widthClass="w-[40%]"
+                      isEditing={
+                        editingCell?.id === faq.id &&
+                        editingCell?.field === "answer"
+                      }
+                      editValue={editValue}
+                      onStartEdit={startEdit}
+                      onEditChange={handleEditChange}
+                      onFinishEdit={finishEdit}
+                      onKeyDown={handleKeyDown}
+                      searchQuery={searchQuery}
+                      currentMatchId={currentMatchId}
+                    />
+                    <FAQCell
+                      faq={faq}
+                      field="notes"
+                      widthClass="w-[calc(30%-3rem)]"
+                      isEditing={
+                        editingCell?.id === faq.id && editingCell?.field === "notes"
+                      }
+                      editValue={editValue}
+                      onStartEdit={startEdit}
+                      onEditChange={handleEditChange}
+                      onFinishEdit={finishEdit}
+                      onKeyDown={handleKeyDown}
+                      searchQuery={searchQuery}
+                      currentMatchId={currentMatchId}
+                    />
+                  </SortableFAQRow>
+                ))}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            faqs.map((faq) => (
+              <div
+                key={faq.id}
+                className="flex border-b border-border/60 last:border-b-0 group/row"
+              >
+                <FAQCell
+                  faq={faq}
+                  field="question"
+                  widthClass="w-[30%]"
+                  isEditing={
+                    editingCell?.id === faq.id && editingCell?.field === "question"
+                  }
+                  editValue={editValue}
+                  onStartEdit={startEdit}
+                  onEditChange={handleEditChange}
+                  onFinishEdit={finishEdit}
+                  onKeyDown={handleKeyDown}
+                  searchQuery={searchQuery}
+                  currentMatchId={currentMatchId}
+                />
+                <FAQCell
+                  faq={faq}
+                  field="answer"
+                  widthClass="w-[40%]"
+                  isEditing={
+                    editingCell?.id === faq.id && editingCell?.field === "answer"
+                  }
+                  editValue={editValue}
+                  onStartEdit={startEdit}
+                  onEditChange={handleEditChange}
+                  onFinishEdit={finishEdit}
+                  onKeyDown={handleKeyDown}
+                  searchQuery={searchQuery}
+                  currentMatchId={currentMatchId}
+                />
+                <FAQCell
+                  faq={faq}
+                  field="notes"
+                  widthClass="w-[calc(30%-3rem)]"
+                  isEditing={
+                    editingCell?.id === faq.id && editingCell?.field === "notes"
+                  }
+                  editValue={editValue}
+                  onStartEdit={startEdit}
+                  onEditChange={handleEditChange}
+                  onFinishEdit={finishEdit}
+                  onKeyDown={handleKeyDown}
+                  searchQuery={searchQuery}
+                  currentMatchId={currentMatchId}
+                />
+                <div className="w-12 p-2 flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="opacity-0 group-hover/row:opacity-100 transition-opacity"
+                    title="Delete"
+                    aria-label="Delete"
+                    onClick={() => onDelete(faq.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
 
           {/* New Rows (draft entry) */}
           {newRows.map((row) => {
@@ -396,8 +587,9 @@ export function FAQTable({
                       if (showError) {
                         setNewRowErrorsById((prev) => {
                           if (!prev[row.tempId]) return prev;
-                          const { [row.tempId]: _removed, ...rest } = prev;
-                          return rest;
+                          const next = { ...prev };
+                          delete next[row.tempId];
+                          return next;
                         });
                       }
                     }}
@@ -421,8 +613,9 @@ export function FAQTable({
                       if (showError) {
                         setNewRowErrorsById((prev) => {
                           if (!prev[row.tempId]) return prev;
-                          const { [row.tempId]: _removed, ...rest } = prev;
-                          return rest;
+                          const next = { ...prev };
+                          delete next[row.tempId];
+                          return next;
                         });
                       }
                     }}
@@ -445,8 +638,9 @@ export function FAQTable({
                       if (showError) {
                         setNewRowErrorsById((prev) => {
                           if (!prev[row.tempId]) return prev;
-                          const { [row.tempId]: _removed, ...rest } = prev;
-                          return rest;
+                          const next = { ...prev };
+                          delete next[row.tempId];
+                          return next;
                         });
                       }
                     }}

@@ -4,6 +4,12 @@ import { authApiHandler } from "@neondatabase/auth/next";
 
 const handlers = authApiHandler();
 
+type AuthRouteContext = {
+  params: Promise<{
+    path: string[];
+  }>;
+};
+
 function isSignUpPath(req: NextRequest) {
   // We run a closed system: no self-serve signups. Block common signup routes.
   const path = req.nextUrl.pathname.toLowerCase();
@@ -14,14 +20,14 @@ function isSignUpPath(req: NextRequest) {
   );
 }
 
-export async function GET(req: NextRequest, ctx: unknown) {
-  return handlers.GET(req, ctx as any);
+export async function GET(req: NextRequest, ctx: AuthRouteContext) {
+  return handlers.GET(req, ctx);
 }
 
-export async function POST(req: NextRequest, ctx: unknown) {
+export async function POST(req: NextRequest, ctx: AuthRouteContext) {
   if (isSignUpPath(req)) {
     return NextResponse.json({ error: "Sign up disabled" }, { status: 404 });
   }
-  return handlers.POST(req, ctx as any);
+  return handlers.POST(req, ctx);
 }
 

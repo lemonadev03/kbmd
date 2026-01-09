@@ -35,6 +35,38 @@ export async function getSections() {
   return db.select().from(sections).orderBy(asc(sections.order));
 }
 
+export async function reorderSections(params: { orderedIds: string[] }) {
+  const { orderedIds } = params;
+  if (orderedIds.length === 0) return;
+
+  // neon-http driver doesn't support transactions; use a single atomic UPDATE.
+  const existing = await db.select({ id: sections.id }).from(sections);
+  const existingIds = new Set(existing.map((r) => r.id));
+
+  const filteredOrdered = orderedIds.filter((id) => existingIds.has(id));
+  const missing = existing
+    .map((r) => r.id)
+    .filter((id) => !filteredOrdered.includes(id));
+
+  const finalOrderedIds = [...filteredOrdered, ...missing];
+  if (finalOrderedIds.length === 0) return;
+
+  // In Postgres UPDATE, SET targets can't be qualified (e.g. "sections"."order").
+  await db.execute(sql`
+    UPDATE ${sections}
+    SET "order" = CASE "id"
+      ${sql.join(
+        finalOrderedIds.map((id, index) => sql`WHEN ${id}::uuid THEN ${index}`),
+        sql` `
+      )}
+      ELSE "order"
+    END
+    WHERE ${inArray(sections.id, finalOrderedIds)}
+  `);
+
+  revalidatePath("/");
+}
+
 export async function createSection(name: string) {
   const allSections = await getSections();
   const result = await db
@@ -62,11 +94,18 @@ export async function deleteSection(id: string) {
 
 // FAQ actions
 export async function getFaqs() {
-  return db.select().from(faqs);
+  return db
+    .select()
+    .from(faqs)
+    .orderBy(asc(faqs.sectionId), asc(faqs.order), asc(faqs.createdAt));
 }
 
 export async function getFaqsBySection(sectionId: string) {
-  return db.select().from(faqs).where(eq(faqs.sectionId, sectionId));
+  return db
+    .select()
+    .from(faqs)
+    .where(eq(faqs.sectionId, sectionId))
+    .orderBy(asc(faqs.order), asc(faqs.createdAt));
 }
 
 export async function createFaq(
@@ -75,9 +114,15 @@ export async function createFaq(
   answer: string,
   notes: string
 ) {
+  const rows = await db
+    .select({ maxOrder: sql<number | null>`max(${faqs.order})` })
+    .from(faqs)
+    .where(eq(faqs.sectionId, sectionId));
+  const nextOrder = (rows[0]?.maxOrder ?? -1) + 1;
+
   const result = await db
     .insert(faqs)
-    .values({ sectionId, question, answer, notes })
+    .values({ sectionId, question, answer, notes, order: nextOrder })
     .returning();
   revalidatePath("/");
   return result[0];
@@ -109,6 +154,7 @@ type FaqUpsertInput = {
   question: string;
   answer: string;
   notes: string;
+  order: number;
 };
 
 export async function applyFaqBatch(params: {
@@ -131,6 +177,7 @@ export async function applyFaqBatch(params: {
           question: f.question,
           answer: f.answer,
           notes: f.notes,
+          order: f.order,
         }))
       )
       .onConflictDoUpdate({
@@ -140,6 +187,7 @@ export async function applyFaqBatch(params: {
           question: sql`excluded.question`,
           answer: sql`excluded.answer`,
           notes: sql`excluded.notes`,
+          order: sql`excluded.order`,
           updatedAt: new Date(),
         },
       });

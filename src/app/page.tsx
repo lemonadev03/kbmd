@@ -33,6 +33,7 @@ import {
   createSection,
   updateSection,
   deleteSection,
+  reorderSections,
   getFaqs,
   applyFaqBatch,
   getCustomRules,
@@ -58,8 +59,16 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
+  order: number;
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+function toMs(value: unknown): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  const d = new Date(String(value));
+  return Number.isFinite(d.getTime()) ? d.getTime() : 0;
 }
 
 export default function Home() {
@@ -142,14 +151,35 @@ export default function Home() {
     return out;
   }, [faqs, faqDraftById, deletedFaqIds]);
 
+  const sectionOrderById = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const s of sections) out.set(s.id, s.order);
+    return out;
+  }, [sections]);
+
+  const orderedEffectiveFaqs = useMemo(() => {
+    const sorted = [...effectiveFaqs];
+    sorted.sort((a, b) => {
+      const aSection = sectionOrderById.get(a.sectionId) ?? 0;
+      const bSection = sectionOrderById.get(b.sectionId) ?? 0;
+      if (aSection !== bSection) return aSection - bSection;
+      if (a.order !== b.order) return a.order - b.order;
+      const aCreated = toMs(a.createdAt);
+      const bCreated = toMs(b.createdAt);
+      if (aCreated !== bCreated) return aCreated - bCreated;
+      return a.id.localeCompare(b.id);
+    });
+    return sorted;
+  }, [effectiveFaqs, sectionOrderById]);
+
   const filteredFaqs = searchQuery
-    ? effectiveFaqs.filter(
+    ? orderedEffectiveFaqs.filter(
         (faq) =>
           faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
           faq.answer.toLowerCase().includes(searchQuery.toLowerCase()) ||
           faq.notes.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : effectiveFaqs;
+    : orderedEffectiveFaqs;
 
   const {
     totalMatches,
@@ -170,7 +200,14 @@ export default function Home() {
   }, [sections, effectiveFaqs]);
 
   const getFaqsForSection = (sectionId: string) => {
-    return filteredFaqs.filter((faq) => faq.sectionId === sectionId);
+    const inSection = filteredFaqs.filter((faq) => faq.sectionId === sectionId);
+    return [...inSection].sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      const aCreated = toMs(a.createdAt);
+      const bCreated = toMs(b.createdAt);
+      if (aCreated !== bCreated) return aCreated - bCreated;
+      return a.id.localeCompare(b.id);
+    });
   };
 
   // Variable handlers
@@ -203,6 +240,24 @@ export default function Home() {
     refreshData();
   };
 
+  const handleReorderSections = async (orderedIds: string[]) => {
+    setSections((prev) => {
+      const byId = new Map(prev.map((s) => [s.id, s]));
+      const filteredOrdered = orderedIds.filter((id) => byId.has(id));
+      const missing = prev.map((s) => s.id).filter((id) => !filteredOrdered.includes(id));
+      const finalIds = [...filteredOrdered, ...missing];
+      return finalIds.map((id, index) => ({ ...byId.get(id)!, order: index }));
+    });
+
+    try {
+      await reorderSections({ orderedIds });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder sections. Please try again.");
+      refreshData();
+    }
+  };
+
   const handleDeleteSection = async (id: string) => {
     const sectionFaqs = faqs.filter((f) => f.sectionId === id);
     const message =
@@ -226,6 +281,13 @@ export default function Home() {
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const now = new Date();
+    const nextOrder =
+      Math.max(
+        -1,
+        ...orderedEffectiveFaqs
+          .filter((f) => f.sectionId === sectionId)
+          .map((f) => f.order)
+      ) + 1;
 
     setFaqDraftById((prev) => ({
       ...prev,
@@ -235,6 +297,7 @@ export default function Home() {
         question: data.question,
         answer: data.answer,
         notes: data.notes,
+        order: nextOrder,
         createdAt: now,
         updatedAt: now,
       },
@@ -263,11 +326,13 @@ export default function Home() {
           nextFaq.sectionId === base.sectionId &&
           nextFaq.question === base.question &&
           nextFaq.answer === base.answer &&
-          nextFaq.notes === base.notes;
+          nextFaq.notes === base.notes &&
+          nextFaq.order === base.order;
 
         if (matchesBase) {
-          const { [id]: _removed, ...rest } = prev;
-          return rest;
+          const next = { ...prev };
+          delete next[id];
+          return next;
         }
       }
 
@@ -286,20 +351,72 @@ export default function Home() {
     if (isNew) {
       setFaqDraftById((prev) => {
         if (!(id in prev)) return prev;
-        const { [id]: _removed, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[id];
+        return next;
       });
       return;
     }
 
     setFaqDraftById((prev) => {
       if (!(id in prev)) return prev;
-      const { [id]: _removed, ...rest } = prev;
-      return rest;
+      const next = { ...prev };
+      delete next[id];
+      return next;
     });
     setDeletedFaqIds((prev) => {
       const next = new Set(prev);
       next.add(id);
+      return next;
+    });
+  };
+
+  const handleReorderFaqs = (sectionId: string, orderedIds: string[]) => {
+    const currentSectionFaqs = orderedEffectiveFaqs.filter((f) => f.sectionId === sectionId);
+    const existingIds = new Set(currentSectionFaqs.map((f) => f.id));
+    const filteredOrdered = orderedIds.filter((id) => existingIds.has(id));
+    const missing = currentSectionFaqs
+      .map((f) => f.id)
+      .filter((id) => !filteredOrdered.includes(id));
+    const finalIds = [...filteredOrdered, ...missing];
+
+    setFaqDraftById((prev) => {
+      let next = prev;
+
+      for (let index = 0; index < finalIds.length; index++) {
+        const id = finalIds[index];
+        const base = baseFaqById.get(id);
+        const current = prev[id] ?? base;
+        if (!current) continue;
+
+        const nextFaq: FAQ = {
+          ...current,
+          order: index,
+          updatedAt: new Date(),
+        };
+
+        if (base) {
+          const matchesBase =
+            nextFaq.sectionId === base.sectionId &&
+            nextFaq.question === base.question &&
+            nextFaq.answer === base.answer &&
+            nextFaq.notes === base.notes &&
+            nextFaq.order === base.order;
+
+          if (matchesBase) {
+            if (id in next) {
+              const cloned = { ...next };
+              delete cloned[id];
+              next = cloned;
+            }
+            continue;
+          }
+        }
+
+        if (next === prev) next = { ...prev };
+        next[id] = nextFaq;
+      }
+
       return next;
     });
   };
@@ -311,6 +428,7 @@ export default function Home() {
       question: string;
       answer: string;
       notes: string;
+      order: number;
     }> = [];
 
     let created = 0;
@@ -327,7 +445,8 @@ export default function Home() {
           draft.sectionId === base.sectionId &&
           draft.question === base.question &&
           draft.answer === base.answer &&
-          draft.notes === base.notes;
+          draft.notes === base.notes &&
+          draft.order === base.order;
         if (matchesBase) continue;
         updated += 1;
       } else {
@@ -344,6 +463,7 @@ export default function Home() {
         question: draft.question,
         answer: draft.answer,
         notes: draft.notes,
+        order: draft.order,
       });
     }
 
@@ -445,6 +565,7 @@ export default function Home() {
         sections={sections}
         activeSection={activeSection}
         onNavigate={scrollToSection}
+        onReorderSections={handleReorderSections}
         faqCounts={faqCounts}
         loading={isLoading}
         userEmail={session.data?.user?.email}
@@ -616,6 +737,8 @@ export default function Home() {
                       onCreateFaq={handleCreateFaq}
                       onUpdateFaq={handleUpdateFaq}
                       onDeleteFaq={handleDeleteFaq}
+                      onReorderFaqs={handleReorderFaqs}
+                      reorderDisabled={searchQuery.trim().length > 0}
                       searchQuery={searchQuery}
                       currentMatchId={currentMatchId}
                     />

@@ -8,6 +8,7 @@ interface FAQ {
   question: string;
   answer: string;
   notes: string;
+  order: number;
 }
 
 interface Section {
@@ -102,7 +103,7 @@ export function useSearchNavigation(
 
   // Reset to first match when query changes
   useEffect(() => {
-    setCurrentIndex(0);
+    queueMicrotask(() => setCurrentIndex(0));
   }, [query]);
 
   const totalMatches = matches.length;
