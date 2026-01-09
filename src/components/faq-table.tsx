@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus } from "lucide-react";
+import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { HighlightText } from "./highlight-text";
+import { copyToClipboard } from "@/lib/clipboard";
+import { useElementMetrics } from "@/hooks/use-element-metrics";
 
 interface FAQ {
   id: string;
@@ -35,6 +37,189 @@ interface FAQTableProps {
 interface EditingCell {
   id: string;
   field: "question" | "answer" | "notes";
+}
+
+function FAQCell({
+  faq,
+  field,
+  widthClass,
+  isEditing,
+  editValue,
+  onStartEdit,
+  onEditChange,
+  onFinishEdit,
+  onKeyDown,
+  searchQuery,
+  currentMatchId,
+}: {
+  faq: FAQ;
+  field: EditingCell["field"];
+  widthClass: string;
+  isEditing: boolean;
+  editValue: string;
+  onStartEdit: (faq: FAQ, field: EditingCell["field"]) => void;
+  onEditChange: (faq: FAQ, value: string) => void;
+  onFinishEdit: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  searchQuery: string;
+  currentMatchId: string | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  const proseRef = useRef<HTMLDivElement>(null);
+
+  const value = faq[field] || "";
+  const { height, lineCount } = useElementMetrics(proseRef, [value, searchQuery]);
+  const isTall = (lineCount ?? 0) >= 6 || height >= 140;
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1000);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+
+  if (isEditing) {
+    return (
+      <div className={`${widthClass} p-3 border-r border-border/60`}>
+        <Textarea
+          value={editValue}
+          onChange={(e) => onEditChange(faq, e.target.value)}
+          onKeyDown={onKeyDown}
+          onBlur={onFinishEdit}
+          autoFocus
+          className="min-h-[100px] font-mono text-sm resize-none bg-background/70"
+          placeholder={`Enter ${field}...`}
+        />
+        <div className="text-xs text-muted-foreground mt-1">
+          ⌘+Enter to apply · Esc to cancel
+        </div>
+      </div>
+    );
+  }
+
+  const matchIdPrefix = `match-${faq.id}-${field}`;
+  const copyDisabled = !value.trim();
+
+  return (
+    <div
+      className={`${widthClass} p-4 border-r border-border/60 cursor-text hover:bg-muted/40 transition-colors relative group/cell focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/30`}
+      onClick={() => onStartEdit(faq, field)}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onStartEdit(faq, field);
+        }
+      }}
+    >
+      <div
+        ref={proseRef}
+        className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap pr-14"
+      >
+        {searchQuery ? (
+          <HighlightText
+            text={value || "Click to add"}
+            query={searchQuery}
+            currentMatchId={currentMatchId ?? undefined}
+            matchIdPrefix={matchIdPrefix}
+          />
+        ) : (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {value || "*Click to add*"}
+          </ReactMarkdown>
+        )}
+      </div>
+
+      <div className="absolute inset-0 pointer-events-none">
+        {isTall ? (
+          <div className="absolute inset-2 flex flex-col items-end justify-between opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
+            <div className="pointer-events-auto">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="bg-background/70 backdrop-blur-sm"
+                title="Edit"
+                aria-label="Edit"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onStartEdit(faq, field);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="pointer-events-auto">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="bg-background/70 backdrop-blur-sm"
+                title={copied ? "Copied" : "Copy"}
+                aria-label={copied ? "Copied" : "Copy"}
+                disabled={copyDisabled}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (copyDisabled) return;
+                  const ok = await copyToClipboard(value);
+                  if (ok) setCopied(true);
+                }}
+              >
+                {copied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="absolute right-2 bottom-2 flex items-end justify-end gap-1 opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
+            <div className="pointer-events-auto">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="bg-background/70 backdrop-blur-sm"
+                title="Edit"
+                aria-label="Edit"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onStartEdit(faq, field);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="pointer-events-auto">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="bg-background/70 backdrop-blur-sm"
+                title={copied ? "Copied" : "Copy"}
+                aria-label={copied ? "Copied" : "Copy"}
+                disabled={copyDisabled}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (copyDisabled) return;
+                  const ok = await copyToClipboard(value);
+                  if (ok) setCopied(true);
+                }}
+              >
+                {copied ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function FAQTable({
@@ -164,57 +349,6 @@ export function FAQTable({
     }
   };
 
-  const renderCell = (
-    faq: FAQ,
-    field: "question" | "answer" | "notes",
-    width: string
-  ) => {
-    const isEditing = editingCell?.id === faq.id && editingCell?.field === field;
-
-    if (isEditing) {
-      return (
-        <div className={`${width} p-3 border-r border-border/60 last:border-r-0`}>
-          <Textarea
-            value={editValue}
-            onChange={(e) => handleEditChange(faq, e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={finishEdit}
-            autoFocus
-            className="min-h-[100px] font-mono text-sm resize-none bg-background/70"
-            placeholder={`Enter ${field}...`}
-          />
-          <div className="text-xs text-muted-foreground mt-1">
-            ⌘+Enter to apply · Esc to cancel
-          </div>
-        </div>
-      );
-    }
-
-    const matchIdPrefix = `match-${faq.id}-${field}`;
-
-    return (
-      <div
-        className={`${width} p-4 border-r border-border/60 last:border-r-0 cursor-text hover:bg-muted/40 transition-colors`}
-        onClick={() => startEdit(faq, field)}
-      >
-        <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
-          {searchQuery ? (
-            <HighlightText
-              text={faq[field] || "Click to add"}
-              query={searchQuery}
-              currentMatchId={currentMatchId ?? undefined}
-              matchIdPrefix={matchIdPrefix}
-            />
-          ) : (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {faq[field] || "*Click to add*"}
-            </ReactMarkdown>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="rounded-2xl border bg-card/80 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -227,59 +361,66 @@ export function FAQTable({
             <div className="w-[40%] p-3 px-4 border-r border-border/60">
               Answer
             </div>
-            <div className="w-[30%] p-3 px-4">Notes</div>
+            <div className="w-[calc(30%-3rem)] p-3 px-4 border-r border-border/60">
+              Notes
+            </div>
+            <div className="w-12 p-3 px-2" />
           </div>
 
           {/* Rows */}
           {faqs.map((faq) => (
             <div
               key={faq.id}
-              className="flex border-b border-border/60 last:border-b-0 group"
+              className="flex border-b border-border/60 last:border-b-0 group/row"
             >
-              {renderCell(faq, "question", "w-[30%]")}
-              {renderCell(faq, "answer", "w-[40%]")}
-              <div className="w-[30%] flex">
-                <div
-                  className="flex-1 p-4 cursor-text hover:bg-muted/40 transition-colors"
-                  onClick={() => startEdit(faq, "notes")}
-                >
-                  {editingCell?.id === faq.id &&
-                  editingCell?.field === "notes" ? (
-                    <div>
-                      <Textarea
-                        value={editValue}
-                        onChange={(e) => handleEditChange(faq, e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        onBlur={finishEdit}
-                        autoFocus
-                        className="min-h-[100px] font-mono text-sm resize-none bg-background/70"
-                        placeholder="Enter notes..."
-                      />
-                      <div className="text-xs text-muted-foreground mt-1">
-                        ⌘+Enter to apply · Esc to cancel
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
-                      {searchQuery ? (
-                        <HighlightText
-                          text={faq.notes || "Click to add"}
-                          query={searchQuery}
-                          currentMatchId={currentMatchId ?? undefined}
-                          matchIdPrefix={`match-${faq.id}-notes`}
-                        />
-                      ) : (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {faq.notes || "*Click to add*"}
-                        </ReactMarkdown>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <FAQCell
+                faq={faq}
+                field="question"
+                widthClass="w-[30%]"
+                isEditing={
+                  editingCell?.id === faq.id && editingCell?.field === "question"
+                }
+                editValue={editValue}
+                onStartEdit={startEdit}
+                onEditChange={handleEditChange}
+                onFinishEdit={finishEdit}
+                onKeyDown={handleKeyDown}
+                searchQuery={searchQuery}
+                currentMatchId={currentMatchId}
+              />
+              <FAQCell
+                faq={faq}
+                field="answer"
+                widthClass="w-[40%]"
+                isEditing={editingCell?.id === faq.id && editingCell?.field === "answer"}
+                editValue={editValue}
+                onStartEdit={startEdit}
+                onEditChange={handleEditChange}
+                onFinishEdit={finishEdit}
+                onKeyDown={handleKeyDown}
+                searchQuery={searchQuery}
+                currentMatchId={currentMatchId}
+              />
+              <FAQCell
+                faq={faq}
+                field="notes"
+                widthClass="w-[calc(30%-3rem)]"
+                isEditing={editingCell?.id === faq.id && editingCell?.field === "notes"}
+                editValue={editValue}
+                onStartEdit={startEdit}
+                onEditChange={handleEditChange}
+                onFinishEdit={finishEdit}
+                onKeyDown={handleKeyDown}
+                searchQuery={searchQuery}
+                currentMatchId={currentMatchId}
+              />
+              <div className="w-12 p-2 flex justify-center">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity m-2 shrink-0"
+                  size="icon-sm"
+                  className="opacity-0 group-hover/row:opacity-100 transition-opacity"
+                  title="Delete"
+                  aria-label="Delete"
                   onClick={() => onDelete(faq.id)}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -348,7 +489,7 @@ export function FAQTable({
                     placeholder="Enter answer..."
                   />
                 </div>
-                <div className="w-[30%] p-3">
+                <div className="w-[calc(30%-3rem)] p-3 border-r border-border/60">
                   <Textarea
                     value={row.notes}
                     onChange={(e) => {
@@ -379,6 +520,7 @@ export function FAQTable({
                     </div>
                   )}
                 </div>
+                <div className="w-12 p-3" />
               </div>
             );
           })}
