@@ -1,6 +1,6 @@
 "use server";
 
-import { db, variables, sections, faqs } from "./index";
+import { db, variables, sections, faqs, customRules } from "./index";
 import { eq, asc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -161,4 +161,31 @@ export async function getAllData() {
     getFaqs(),
   ]);
   return { variables: vars, sections: sects, faqs: faqList };
+}
+
+// Custom Rules actions
+export async function getCustomRules() {
+  const rows = await db.select().from(customRules).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function saveCustomRules(content: string) {
+  const existing = await getCustomRules();
+
+  if (existing) {
+    const result = await db
+      .update(customRules)
+      .set({ content, updatedAt: new Date() })
+      .where(eq(customRules.id, existing.id))
+      .returning();
+    revalidatePath("/");
+    return result[0];
+  } else {
+    const result = await db
+      .insert(customRules)
+      .values({ content })
+      .returning();
+    revalidatePath("/");
+    return result[0];
+  }
 }

@@ -24,3 +24,10 @@ export const faqs = pgTable("faqs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const customRules = pgTable("custom_rules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  content: text("content").notNull().default(""),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

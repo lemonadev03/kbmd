@@ -36,6 +36,7 @@ interface ExportModalProps {
   variables: Variable[];
   sections: Section[];
   faqs: FAQ[];
+  customRules?: string;
 }
 
 export function ExportModal({
@@ -44,8 +45,10 @@ export function ExportModal({
   variables,
   sections,
   faqs,
+  customRules,
 }: ExportModalProps) {
   const [includeVariables, setIncludeVariables] = useState(true);
+  const [includeCustomRules, setIncludeCustomRules] = useState(true);
   const [selectedSections, setSelectedSections] = useState<Set<string>>(
     new Set(sections.map((s) => s.id))
   );
@@ -75,6 +78,12 @@ export function ExportModal({
 
   const generateMarkdown = () => {
     let md = "# Knowledge Base\n\n";
+
+    // Custom rules section
+    if (includeCustomRules && customRules) {
+      md += "## Custom Rules\n\n";
+      md += customRules + "\n\n";
+    }
 
     // Variables section
     if (includeVariables && variables.length > 0) {
@@ -131,7 +140,7 @@ export function ExportModal({
   };
 
   const selectedCount = selectedSections.size;
-  const canExport = includeVariables || selectedCount > 0;
+  const canExport = includeVariables || includeCustomRules || selectedCount > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,6 +150,19 @@ export function ExportModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Custom Rules */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="customRules"
+              checked={includeCustomRules}
+              onCheckedChange={(checked) => setIncludeCustomRules(checked === true)}
+              disabled={!customRules}
+            />
+            <label htmlFor="customRules" className="text-sm font-medium cursor-pointer">
+              Custom Rules {customRules ? "" : "(empty)"}
+            </label>
+          </div>
+
           {/* Variables */}
           <div className="flex items-center space-x-2">
             <Checkbox

@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { FAQSection } from "@/components/faq-section";
 import { VariablesSection } from "@/components/variables-section";
+import { CustomRulesSection } from "@/components/custom-rules-section";
 import { ExportModal } from "@/components/export-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import {
   deleteSection,
   getFaqs,
   applyFaqBatch,
+  getCustomRules,
+  saveCustomRules,
 } from "@/db/actions";
 
 interface Variable {
@@ -56,16 +59,22 @@ export default function Home() {
   const [newSectionName, setNewSectionName] = useState("");
   const [showNewSection, setShowNewSection] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [customRulesContent, setCustomRulesContent] = useState("");
+  const [customRulesDraft, setCustomRulesDraft] = useState<string | null>(null);
+  const [customRulesResetSignal, setCustomRulesResetSignal] = useState(0);
+  const [isSavingCustomRules, setIsSavingCustomRules] = useState(false);
 
   const refreshData = async () => {
-    const [vars, sects, faqList] = await Promise.all([
+    const [vars, sects, faqList, rules] = await Promise.all([
       getVariables(),
       getSections(),
       getFaqs(),
+      getCustomRules(),
     ]);
     setVariables(vars);
     setSections(sects);
     setFaqs(faqList);
+    setCustomRulesContent(rules?.content ?? "");
   };
 
   useEffect(() => {
@@ -252,6 +261,8 @@ export default function Home() {
     let created = 0;
     let updated = 0;
 
+    const incompleteUpserts: string[] = [];
+
     for (const draft of Object.values(faqDraftById)) {
       if (deletedFaqIds.has(draft.id)) continue;
       const base = baseFaqById.get(draft.id);
@@ -266,6 +277,10 @@ export default function Home() {
         updated += 1;
       } else {
         created += 1;
+      }
+
+      if (!draft.question.trim() || !draft.answer.trim()) {
+        incompleteUpserts.push(draft.id);
       }
 
       upserts.push({
@@ -285,18 +300,27 @@ export default function Home() {
       created,
       updated,
       deleted: deletes.length,
+      incompleteUpserts,
     };
   }, [faqDraftById, deletedFaqIds, baseFaqById]);
 
   const hasPendingFaqChanges =
     pendingFaqBatch.upserts.length > 0 || pendingFaqBatch.deletes.length > 0;
 
+  const canSaveFaqChanges =
+    hasPendingFaqChanges && pendingFaqBatch.incompleteUpserts.length === 0;
+
   const handleSaveFaqChanges = async () => {
-    if (isSavingFaqBatch || !hasPendingFaqChanges) return;
+    if (isSavingFaqBatch || !canSaveFaqChanges) return;
     setIsSavingFaqBatch(true);
     try {
       await applyFaqBatch({
-        upserts: pendingFaqBatch.upserts,
+        upserts: pendingFaqBatch.upserts.map((f) => ({
+          ...f,
+          question: f.question.trim(),
+          answer: f.answer.trim(),
+          notes: f.notes.trim(),
+        })),
         deletes: pendingFaqBatch.deletes,
       });
       setFaqDraftById({});
@@ -319,6 +343,40 @@ export default function Home() {
     setFaqDraftResetSignal((n) => n + 1);
   };
 
+  // Custom rules handlers
+  const handleUpdateCustomRules = (content: string) => {
+    if (content === customRulesContent) {
+      setCustomRulesDraft(null);
+    } else {
+      setCustomRulesDraft(content);
+    }
+  };
+
+  const hasPendingCustomRulesChanges = customRulesDraft !== null;
+
+  const handleSaveCustomRules = async () => {
+    if (isSavingCustomRules || !hasPendingCustomRulesChanges) return;
+    setIsSavingCustomRules(true);
+    try {
+      await saveCustomRules(customRulesDraft!);
+      setCustomRulesDraft(null);
+      setCustomRulesResetSignal((n) => n + 1);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save custom rules. Please try again.");
+    } finally {
+      setIsSavingCustomRules(false);
+    }
+  };
+
+  const handleDiscardCustomRules = () => {
+    if (!hasPendingCustomRulesChanges) return;
+    if (!confirm("Discard custom rules changes?")) return;
+    setCustomRulesDraft(null);
+    setCustomRulesResetSignal((n) => n + 1);
+  };
+
   if (!mounted) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -329,7 +387,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className={`max-w-7xl mx-auto px-4 py-6 ${hasPendingFaqChanges ? "pb-28" : ""}`}>
+      <div className={`max-w-7xl mx-auto px-4 py-6 ${hasPendingFaqChanges || hasPendingCustomRulesChanges ? "pb-28" : ""}`}>
         <header className="mb-6">
           <h1 className="text-3xl font-bold mb-1">Knowledge Base</h1>
           <p className="text-muted-foreground">
@@ -352,6 +410,13 @@ export default function Home() {
             Export MD
           </Button>
         </div>
+
+        {/* Custom Rules */}
+        <CustomRulesSection
+          content={customRulesContent}
+          onUpdate={handleUpdateCustomRules}
+          resetSignal={customRulesResetSignal}
+        />
 
         {/* Variables */}
         <VariablesSection
@@ -430,11 +495,12 @@ export default function Home() {
           variables={variables}
           sections={sections}
           faqs={effectiveFaqs}
+          customRules={customRulesContent}
         />
       </div>
 
       {hasPendingFaqChanges && (
-        <div className="fixed inset-x-0 bottom-4 z-50 px-4">
+        <div className="fixed inset-x-0 z-50 px-4" style={{ bottom: hasPendingCustomRulesChanges ? '7rem' : '1rem' }}>
           <div className="mx-auto max-w-3xl">
             <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -443,6 +509,13 @@ export default function Home() {
                   {pendingFaqBatch.created} new · {pendingFaqBatch.updated} edited ·{" "}
                   {pendingFaqBatch.deleted} deleted
                 </div>
+                {pendingFaqBatch.incompleteUpserts.length > 0 && (
+                  <div className="text-xs text-destructive mt-1">
+                    {pendingFaqBatch.incompleteUpserts.length} item
+                    {pendingFaqBatch.incompleteUpserts.length !== 1 ? "s" : ""} missing
+                    question/answer
+                  </div>
+                )}
               </div>
               <div className="flex gap-2 shrink-0">
                 <Button
@@ -452,8 +525,41 @@ export default function Home() {
                 >
                   Discard
                 </Button>
-                <Button onClick={handleSaveFaqChanges} disabled={isSavingFaqBatch}>
+                <Button
+                  onClick={handleSaveFaqChanges}
+                  disabled={isSavingFaqBatch || !canSaveFaqChanges}
+                >
                   {isSavingFaqBatch ? "Saving..." : "Save changes"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasPendingCustomRulesChanges && (
+        <div className="fixed inset-x-0 bottom-4 z-50 px-4">
+          <div className="mx-auto max-w-3xl">
+            <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-medium text-sm">Unsaved custom rules</div>
+                <div className="text-xs text-muted-foreground">
+                  Custom rules have been modified
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={handleDiscardCustomRules}
+                  disabled={isSavingCustomRules}
+                >
+                  Discard
+                </Button>
+                <Button
+                  onClick={handleSaveCustomRules}
+                  disabled={isSavingCustomRules}
+                >
+                  {isSavingCustomRules ? "Saving..." : "Save custom rules"}
                 </Button>
               </div>
             </div>

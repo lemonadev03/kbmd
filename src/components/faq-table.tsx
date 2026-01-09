@@ -43,12 +43,22 @@ export function FAQTable({
 }: FAQTableProps) {
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [newRow, setNewRow] = useState<FAQFormData | null>(null);
+  const [newRows, setNewRows] = useState<
+    Array<{ tempId: string } & FAQFormData>
+  >([]);
+  const [autoFocusNewRowId, setAutoFocusNewRowId] = useState<string | null>(
+    null
+  );
+  const [newRowErrorsById, setNewRowErrorsById] = useState<Record<string, true>>(
+    {}
+  );
 
   useEffect(() => {
     setEditingCell(null);
     setEditValue("");
-    setNewRow(null);
+    setNewRows([]);
+    setAutoFocusNewRowId(null);
+    setNewRowErrorsById({});
   }, [resetSignal]);
 
   const startEdit = (faq: FAQ, field: "question" | "answer" | "notes") => {
@@ -88,18 +98,67 @@ export function FAQTable({
     }
   };
 
-  const startNewRow = () => {
-    setNewRow({ question: "", answer: "", notes: "" });
+  const addNewRow = () => {
+    const tempId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    setNewRows((prev) => [...prev, { tempId, question: "", answer: "", notes: "" }]);
+    setAutoFocusNewRowId(tempId);
   };
 
-  const saveNewRow = () => {
-    if (!newRow || !newRow.question.trim() || !newRow.answer.trim()) return;
-    onCreate(newRow);
-    setNewRow(null);
+  const removeNewRow = (tempId: string) => {
+    setNewRows((prev) => prev.filter((r) => r.tempId !== tempId));
+    setNewRowErrorsById((prev) => {
+      if (!prev[tempId]) return prev;
+      const { [tempId]: _removed, ...rest } = prev;
+      return rest;
+    });
+    setAutoFocusNewRowId((prev) => (prev === tempId ? null : prev));
   };
 
-  const cancelNewRow = () => {
-    setNewRow(null);
+  const commitNewRow = (row: { tempId: string } & FAQFormData) => {
+    const question = row.question.trim();
+    const answer = row.answer.trim();
+    const notes = row.notes.trim();
+
+    if (!question && !answer && !notes) {
+      removeNewRow(row.tempId);
+      return;
+    }
+
+    if (!question || !answer) {
+      setNewRowErrorsById((prev) => ({ ...prev, [row.tempId]: true }));
+      return;
+    }
+
+    onCreate({ question, answer, notes });
+    removeNewRow(row.tempId);
+  };
+
+  const handleNewRowBlurCapture = (
+    e: React.FocusEvent<HTMLDivElement>,
+    row: { tempId: string } & FAQFormData
+  ) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && e.currentTarget.contains(next)) return;
+    commitNewRow(row);
+  };
+
+  const handleNewRowKeyDown = (
+    e: React.KeyboardEvent,
+    row: { tempId: string } & FAQFormData
+  ) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      removeNewRow(row.tempId);
+      return;
+    }
+    if (e.key === "Enter" && e.metaKey) {
+      e.preventDefault();
+      commitNewRow(row);
+    }
   };
 
   const renderCell = (
@@ -135,7 +194,7 @@ export function FAQTable({
       >
         <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em]">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {faq[field] || (field === "notes" ? "*Click to add*" : "")}
+            {faq[field] || "*Click to add*"}
           </ReactMarkdown>
         </div>
       </div>
@@ -196,52 +255,103 @@ export function FAQTable({
         </div>
       ))}
 
-      {/* New Row */}
-      {newRow ? (
-        <div className="flex border-t bg-muted/20">
-          <div className="w-[30%] p-2 border-r">
-            <Textarea
-              value={newRow.question}
-              onChange={(e) => setNewRow({ ...newRow, question: e.target.value })}
-              autoFocus
-              className="min-h-[60px] font-mono text-sm resize-none"
-              placeholder="Enter question..."
-            />
-          </div>
-          <div className="w-[40%] p-2 border-r">
-            <Textarea
-              value={newRow.answer}
-              onChange={(e) => setNewRow({ ...newRow, answer: e.target.value })}
-              className="min-h-[60px] font-mono text-sm resize-none"
-              placeholder="Enter answer..."
-            />
-          </div>
-          <div className="w-[30%] p-2">
-            <Textarea
-              value={newRow.notes}
-              onChange={(e) => setNewRow({ ...newRow, notes: e.target.value })}
-              className="min-h-[60px] font-mono text-sm resize-none"
-              placeholder="Notes (optional)..."
-            />
-            <div className="flex gap-2 mt-2">
-              <Button size="sm" onClick={saveNewRow} disabled={!newRow.question.trim() || !newRow.answer.trim()}>
-                Add
-              </Button>
-              <Button size="sm" variant="outline" onClick={cancelNewRow}>
-                Cancel
-              </Button>
+      {/* New Rows (draft entry) */}
+      {newRows.map((row) => {
+        const showError = newRowErrorsById[row.tempId] === true;
+        const isQuestionMissing = showError && !row.question.trim();
+        const isAnswerMissing = showError && !row.answer.trim();
+        return (
+          <div
+            key={row.tempId}
+            className="flex border-t bg-muted/20"
+            onBlurCapture={(e) => handleNewRowBlurCapture(e, row)}
+          >
+            <div className="w-[30%] p-2 border-r">
+              <Textarea
+                value={row.question}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewRows((prev) =>
+                    prev.map((r) => (r.tempId === row.tempId ? { ...r, question: value } : r))
+                  );
+                  if (showError) {
+                    setNewRowErrorsById((prev) => {
+                      if (!prev[row.tempId]) return prev;
+                      const { [row.tempId]: _removed, ...rest } = prev;
+                      return rest;
+                    });
+                  }
+                }}
+                onKeyDown={(e) => handleNewRowKeyDown(e, row)}
+                autoFocus={autoFocusNewRowId === row.tempId}
+                aria-invalid={isQuestionMissing}
+                className="min-h-[60px] font-mono text-sm resize-none"
+                placeholder="Enter question..."
+              />
+            </div>
+            <div className="w-[40%] p-2 border-r">
+              <Textarea
+                value={row.answer}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewRows((prev) =>
+                    prev.map((r) => (r.tempId === row.tempId ? { ...r, answer: value } : r))
+                  );
+                  if (showError) {
+                    setNewRowErrorsById((prev) => {
+                      if (!prev[row.tempId]) return prev;
+                      const { [row.tempId]: _removed, ...rest } = prev;
+                      return rest;
+                    });
+                  }
+                }}
+                onKeyDown={(e) => handleNewRowKeyDown(e, row)}
+                aria-invalid={isAnswerMissing}
+                className="min-h-[60px] font-mono text-sm resize-none"
+                placeholder="Enter answer..."
+              />
+            </div>
+            <div className="w-[30%] p-2">
+              <Textarea
+                value={row.notes}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewRows((prev) =>
+                    prev.map((r) => (r.tempId === row.tempId ? { ...r, notes: value } : r))
+                  );
+                  if (showError) {
+                    setNewRowErrorsById((prev) => {
+                      if (!prev[row.tempId]) return prev;
+                      const { [row.tempId]: _removed, ...rest } = prev;
+                      return rest;
+                    });
+                  }
+                }}
+                onKeyDown={(e) => handleNewRowKeyDown(e, row)}
+                className="min-h-[60px] font-mono text-sm resize-none"
+                placeholder="Notes (optional)..."
+              />
+              <div className="text-xs text-muted-foreground mt-2">
+                Auto-adds when you click away · ⌘+Enter to add · Esc to discard
+              </div>
+              {showError && (
+                <div className="text-xs text-destructive mt-1">
+                  Question and answer are required
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      ) : (
-        <div
-          className="flex items-center gap-2 p-2 px-3 text-muted-foreground hover:bg-muted/30 cursor-pointer transition-colors"
-          onClick={startNewRow}
-        >
-          <Plus className="h-4 w-4" />
-          <span className="text-sm">Add FAQ</span>
-        </div>
-      )}
+        );
+      })}
+
+      {/* Add Row */}
+      <div
+        className="flex items-center gap-2 p-2 px-3 text-muted-foreground hover:bg-muted/30 cursor-pointer transition-colors"
+        onClick={addNewRow}
+      >
+        <Plus className="h-4 w-4" />
+        <span className="text-sm">Add FAQ</span>
+      </div>
     </div>
   );
 }
