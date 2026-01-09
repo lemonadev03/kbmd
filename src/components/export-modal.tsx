@@ -92,23 +92,25 @@ export function ExportModal({
       if (!selectedSections.has(section.id)) continue;
 
       const sectionFaqs = faqs.filter((f) => f.sectionId === section.id);
-      md += `## ${section.name}\n\n`;
+      md += `# ${section.name}\n\n`;
 
       if (sectionFaqs.length === 0) {
         md += "*No FAQs in this section.*\n\n";
         continue;
       }
 
-      md += "| Question | Answer | Notes |\n";
-      md += "|----------|--------|-------|\n";
-
       for (const faq of sectionFaqs) {
-        const q = faq.question.replace(/\|/g, "\\|").replace(/\n/g, "<br>");
-        const a = faq.answer.replace(/\|/g, "\\|").replace(/\n/g, "<br>");
-        const n = faq.notes.replace(/\|/g, "\\|").replace(/\n/g, "<br>");
-        md += `| ${q} | ${a} | ${n} |\n`;
+        // H2 for question
+        md += `## ${faq.question}\n\n`;
+        
+        // Paragraph for answer
+        md += `${faq.answer}\n\n`;
+        
+        // Include notes if present
+        if (faq.notes.trim()) {
+          md += `*Note: ${faq.notes}*\n\n`;
+        }
       }
-      md += "\n";
     }
 
     return md;
