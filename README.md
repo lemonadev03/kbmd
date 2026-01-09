@@ -20,6 +20,19 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Neon Auth (email + password)
+
+This app uses Neon Auth (hosted) and is configured as a **closed** system (no public sign-ups).
+
+Add these environment variables to your local environment (recommended: `.env.local`):
+
+```bash
+NEON_AUTH_BASE_URL="https://ep-super-frost-ahrreheq.neonauth.c-3.us-east-1.aws.neon.tech/neondb/auth"
+NEXT_PUBLIC_NEON_AUTH_URL="https://ep-super-frost-ahrreheq.neonauth.c-3.us-east-1.aws.neon.tech/neondb/auth"
+```
+
+Then start the app and sign in at `http://localhost:3000/sign-in`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

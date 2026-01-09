@@ -21,21 +21,26 @@ export function useActiveSection(sections: Section[]) {
     const handleScroll = () => {
       if (isScrollingRef.current) return;
 
-      const scrollPosition = window.scrollY + 100;
+      const anchor = 140;
+      let bestId: string | null = null;
+      let bestTop = -Infinity;
+      let fallbackId: string | null = null;
+      let fallbackTop = Infinity;
 
       for (const id of sectionIds) {
         const element = document.getElementById(id);
-        if (element) {
-          const { offsetTop, offsetHeight } = element;
-          if (
-            scrollPosition >= offsetTop &&
-            scrollPosition < offsetTop + offsetHeight
-          ) {
-            setActiveSection(id);
-            return;
-          }
+        if (!element) continue;
+        const top = element.getBoundingClientRect().top;
+        if (top <= anchor && top > bestTop) {
+          bestTop = top;
+          bestId = id;
+        } else if (top > anchor && top < fallbackTop) {
+          fallbackTop = top;
+          fallbackId = id;
         }
       }
+
+      setActiveSection(bestId ?? fallbackId ?? null);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });

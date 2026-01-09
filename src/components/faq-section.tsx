@@ -75,8 +75,8 @@ export function FAQSection({
   };
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center gap-2 mb-3 group sticky top-12 z-10 bg-background py-2">
+    <div className="mb-10">
+      <div className="flex items-center gap-3 mb-3 group sticky top-24 z-10 bg-background/95 backdrop-blur-md py-2 border-b border-border/60">
         {isEditing ? (
           <div className="flex items-center gap-2">
             <Input
@@ -84,7 +84,7 @@ export function FAQSection({
               onChange={(e) => setEditName(e.target.value)}
               onKeyDown={handleKeyDown}
               autoFocus
-              className="text-xl font-semibold h-9 w-64"
+              className="text-2xl font-semibold h-10 w-72 max-w-[70vw]"
             />
             <Button size="icon" variant="ghost" onClick={handleSave}>
               <Check className="h-4 w-4" />
@@ -95,7 +95,7 @@ export function FAQSection({
           </div>
         ) : (
           <>
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-2xl font-semibold tracking-tight">
               {searchQuery ? (
                 <HighlightText
                   text={section.name}

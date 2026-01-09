@@ -71,21 +71,19 @@ export function FAQTable({
     setEditValue(faq[field]);
   };
 
-  const saveEdit = (faq: FAQ) => {
-    if (!editingCell) return;
-
-    const original = faq[editingCell.field];
-    if (editValue === original) {
-      setEditingCell(null);
-      setEditValue("");
-      return;
+  const handleEditChange = (faq: FAQ, value: string) => {
+    setEditValue(value);
+    // Immediately update the draft so changes can be saved
+    if (editingCell) {
+      onUpdate(faq.id, {
+        question: editingCell.field === "question" ? value : faq.question,
+        answer: editingCell.field === "answer" ? value : faq.answer,
+        notes: editingCell.field === "notes" ? value : faq.notes,
+      });
     }
+  };
 
-    onUpdate(faq.id, {
-      question: editingCell.field === "question" ? editValue : faq.question,
-      answer: editingCell.field === "answer" ? editValue : faq.answer,
-      notes: editingCell.field === "notes" ? editValue : faq.notes,
-    });
+  const finishEdit = () => {
     setEditingCell(null);
     setEditValue("");
   };
@@ -95,11 +93,11 @@ export function FAQTable({
     setEditValue("");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, faq: FAQ) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       cancelEdit();
     } else if (e.key === "Enter" && e.metaKey) {
-      saveEdit(faq);
+      finishEdit();
     }
   };
 
@@ -175,14 +173,14 @@ export function FAQTable({
 
     if (isEditing) {
       return (
-        <div className={`${width} p-2 border-r last:border-r-0`}>
+        <div className={`${width} p-3 border-r border-border/60 last:border-r-0`}>
           <Textarea
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={(e) => handleKeyDown(e, faq)}
-            onBlur={() => saveEdit(faq)}
+            onChange={(e) => handleEditChange(faq, e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={finishEdit}
             autoFocus
-            className="min-h-[100px] font-mono text-sm resize-none"
+            className="min-h-[100px] font-mono text-sm resize-none bg-background/70"
             placeholder={`Enter ${field}...`}
           />
           <div className="text-xs text-muted-foreground mt-1">
@@ -196,7 +194,7 @@ export function FAQTable({
 
     return (
       <div
-        className={`${width} p-3 border-r last:border-r-0 cursor-text hover:bg-muted/50 transition-colors`}
+        className={`${width} p-4 border-r border-border/60 last:border-r-0 cursor-text hover:bg-muted/40 transition-colors`}
         onClick={() => startEdit(faq, field)}
       >
         <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
@@ -218,164 +216,182 @@ export function FAQTable({
   };
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="flex bg-muted/50 border-b font-medium text-sm">
-        <div className="w-[30%] p-2 px-3 border-r">Question</div>
-        <div className="w-[40%] p-2 px-3 border-r">Answer</div>
-        <div className="w-[30%] p-2 px-3">Notes</div>
-      </div>
+    <div className="rounded-2xl border bg-card/80 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <div className="min-w-[720px]">
+          {/* Header */}
+          <div className="flex bg-muted/40 border-b border-border/60 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            <div className="w-[30%] p-3 px-4 border-r border-border/60">
+              Question
+            </div>
+            <div className="w-[40%] p-3 px-4 border-r border-border/60">
+              Answer
+            </div>
+            <div className="w-[30%] p-3 px-4">Notes</div>
+          </div>
 
-      {/* Rows */}
-      {faqs.map((faq) => (
-        <div key={faq.id} className="flex border-b last:border-b-0 group">
-          {renderCell(faq, "question", "w-[30%]")}
-          {renderCell(faq, "answer", "w-[40%]")}
-          <div className="w-[30%] flex">
+          {/* Rows */}
+          {faqs.map((faq) => (
             <div
-              className="flex-1 p-3 cursor-text hover:bg-muted/50 transition-colors"
-              onClick={() => startEdit(faq, "notes")}
+              key={faq.id}
+              className="flex border-b border-border/60 last:border-b-0 group"
             >
-              {editingCell?.id === faq.id && editingCell?.field === "notes" ? (
-                <div>
-                  <Textarea
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, faq)}
-                    onBlur={() => saveEdit(faq)}
-                    autoFocus
-                    className="min-h-[100px] font-mono text-sm resize-none"
-                    placeholder="Enter notes..."
-                  />
-                  <div className="text-xs text-muted-foreground mt-1">
-                    ⌘+Enter to apply · Esc to cancel
-                  </div>
-                </div>
-              ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
-                  {searchQuery ? (
-                    <HighlightText
-                      text={faq.notes || "Click to add"}
-                      query={searchQuery}
-                      currentMatchId={currentMatchId ?? undefined}
-                      matchIdPrefix={`match-${faq.id}-notes`}
-                    />
+              {renderCell(faq, "question", "w-[30%]")}
+              {renderCell(faq, "answer", "w-[40%]")}
+              <div className="w-[30%] flex">
+                <div
+                  className="flex-1 p-4 cursor-text hover:bg-muted/40 transition-colors"
+                  onClick={() => startEdit(faq, "notes")}
+                >
+                  {editingCell?.id === faq.id &&
+                  editingCell?.field === "notes" ? (
+                    <div>
+                      <Textarea
+                        value={editValue}
+                        onChange={(e) => handleEditChange(faq, e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={finishEdit}
+                        autoFocus
+                        className="min-h-[100px] font-mono text-sm resize-none bg-background/70"
+                        placeholder="Enter notes..."
+                      />
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ⌘+Enter to apply · Esc to cancel
+                      </div>
+                    </div>
                   ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {faq.notes || "*Click to add*"}
-                    </ReactMarkdown>
+                    <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap">
+                      {searchQuery ? (
+                        <HighlightText
+                          text={faq.notes || "Click to add"}
+                          query={searchQuery}
+                          currentMatchId={currentMatchId ?? undefined}
+                          matchIdPrefix={`match-${faq.id}-notes`}
+                        />
+                      ) : (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {faq.notes || "*Click to add*"}
+                        </ReactMarkdown>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity m-2 shrink-0"
+                  onClick={() => onDelete(faq.id)}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity m-2 shrink-0"
-              onClick={() => onDelete(faq.id)}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+          ))}
+
+          {/* New Rows (draft entry) */}
+          {newRows.map((row) => {
+            const showError = newRowErrorsById[row.tempId] === true;
+            const isQuestionMissing = showError && !row.question.trim();
+            const isAnswerMissing = showError && !row.answer.trim();
+            return (
+              <div
+                key={row.tempId}
+                className="flex border-t border-border/60 bg-muted/15"
+                onBlurCapture={(e) => handleNewRowBlurCapture(e, row)}
+              >
+                <div className="w-[30%] p-3 border-r border-border/60">
+                  <Textarea
+                    value={row.question}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewRows((prev) =>
+                        prev.map((r) =>
+                          r.tempId === row.tempId ? { ...r, question: value } : r
+                        )
+                      );
+                      if (showError) {
+                        setNewRowErrorsById((prev) => {
+                          if (!prev[row.tempId]) return prev;
+                          const { [row.tempId]: _removed, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => handleNewRowKeyDown(e, row)}
+                    autoFocus={autoFocusNewRowId === row.tempId}
+                    aria-invalid={isQuestionMissing}
+                    className="min-h-[60px] font-mono text-sm resize-none bg-background/70"
+                    placeholder="Enter question..."
+                  />
+                </div>
+                <div className="w-[40%] p-3 border-r border-border/60">
+                  <Textarea
+                    value={row.answer}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewRows((prev) =>
+                        prev.map((r) =>
+                          r.tempId === row.tempId ? { ...r, answer: value } : r
+                        )
+                      );
+                      if (showError) {
+                        setNewRowErrorsById((prev) => {
+                          if (!prev[row.tempId]) return prev;
+                          const { [row.tempId]: _removed, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => handleNewRowKeyDown(e, row)}
+                    aria-invalid={isAnswerMissing}
+                    className="min-h-[60px] font-mono text-sm resize-none bg-background/70"
+                    placeholder="Enter answer..."
+                  />
+                </div>
+                <div className="w-[30%] p-3">
+                  <Textarea
+                    value={row.notes}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewRows((prev) =>
+                        prev.map((r) =>
+                          r.tempId === row.tempId ? { ...r, notes: value } : r
+                        )
+                      );
+                      if (showError) {
+                        setNewRowErrorsById((prev) => {
+                          if (!prev[row.tempId]) return prev;
+                          const { [row.tempId]: _removed, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => handleNewRowKeyDown(e, row)}
+                    className="min-h-[60px] font-mono text-sm resize-none bg-background/70"
+                    placeholder="Notes (optional)..."
+                  />
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Auto-adds when you click away · ⌘+Enter to add · Esc to discard
+                  </div>
+                  {showError && (
+                    <div className="text-xs text-destructive mt-1">
+                      Question and answer are required
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Add Row */}
+          <div
+            className="flex items-center gap-2 p-3 px-4 text-muted-foreground hover:bg-muted/30 cursor-pointer transition-colors"
+            onClick={addNewRow}
+          >
+            <Plus className="h-4 w-4" />
+            <span className="text-sm">Add FAQ</span>
           </div>
         </div>
-      ))}
-
-      {/* New Rows (draft entry) */}
-      {newRows.map((row) => {
-        const showError = newRowErrorsById[row.tempId] === true;
-        const isQuestionMissing = showError && !row.question.trim();
-        const isAnswerMissing = showError && !row.answer.trim();
-        return (
-          <div
-            key={row.tempId}
-            className="flex border-t bg-muted/20"
-            onBlurCapture={(e) => handleNewRowBlurCapture(e, row)}
-          >
-            <div className="w-[30%] p-2 border-r">
-              <Textarea
-                value={row.question}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setNewRows((prev) =>
-                    prev.map((r) => (r.tempId === row.tempId ? { ...r, question: value } : r))
-                  );
-                  if (showError) {
-                    setNewRowErrorsById((prev) => {
-                      if (!prev[row.tempId]) return prev;
-                      const { [row.tempId]: _removed, ...rest } = prev;
-                      return rest;
-                    });
-                  }
-                }}
-                onKeyDown={(e) => handleNewRowKeyDown(e, row)}
-                autoFocus={autoFocusNewRowId === row.tempId}
-                aria-invalid={isQuestionMissing}
-                className="min-h-[60px] font-mono text-sm resize-none"
-                placeholder="Enter question..."
-              />
-            </div>
-            <div className="w-[40%] p-2 border-r">
-              <Textarea
-                value={row.answer}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setNewRows((prev) =>
-                    prev.map((r) => (r.tempId === row.tempId ? { ...r, answer: value } : r))
-                  );
-                  if (showError) {
-                    setNewRowErrorsById((prev) => {
-                      if (!prev[row.tempId]) return prev;
-                      const { [row.tempId]: _removed, ...rest } = prev;
-                      return rest;
-                    });
-                  }
-                }}
-                onKeyDown={(e) => handleNewRowKeyDown(e, row)}
-                aria-invalid={isAnswerMissing}
-                className="min-h-[60px] font-mono text-sm resize-none"
-                placeholder="Enter answer..."
-              />
-            </div>
-            <div className="w-[30%] p-2">
-              <Textarea
-                value={row.notes}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setNewRows((prev) =>
-                    prev.map((r) => (r.tempId === row.tempId ? { ...r, notes: value } : r))
-                  );
-                  if (showError) {
-                    setNewRowErrorsById((prev) => {
-                      if (!prev[row.tempId]) return prev;
-                      const { [row.tempId]: _removed, ...rest } = prev;
-                      return rest;
-                    });
-                  }
-                }}
-                onKeyDown={(e) => handleNewRowKeyDown(e, row)}
-                className="min-h-[60px] font-mono text-sm resize-none"
-                placeholder="Notes (optional)..."
-              />
-              <div className="text-xs text-muted-foreground mt-2">
-                Auto-adds when you click away · ⌘+Enter to add · Esc to discard
-              </div>
-              {showError && (
-                <div className="text-xs text-destructive mt-1">
-                  Question and answer are required
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Add Row */}
-      <div
-        className="flex items-center gap-2 p-2 px-3 text-muted-foreground hover:bg-muted/30 cursor-pointer transition-colors"
-        onClick={addNewRow}
-      >
-        <Plus className="h-4 w-4" />
-        <span className="text-sm">Add FAQ</span>
       </div>
     </div>
   );

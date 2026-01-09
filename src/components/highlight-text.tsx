@@ -41,10 +41,8 @@ export function HighlightText({
         key={matchId}
         id={matchId}
         className={cn(
-          "rounded px-0.5",
-          isCurrent
-            ? "bg-yellow-400 text-black ring-2 ring-yellow-500"
-            : "bg-yellow-200 text-black"
+          "rounded px-1 py-0.5 bg-[color:var(--highlight)] text-black",
+          isCurrent && "ring-2 ring-primary/60"
         )}
       >
         {text.slice(index, index + query.length)}

@@ -17,7 +17,7 @@ export function SidebarToggle({ isOpen, onToggle }: SidebarToggleProps) {
       variant="outline"
       size="icon"
       onClick={onToggle}
-      className="fixed top-4 left-4 z-50 bg-background/80 backdrop-blur-sm"
+      className="fixed top-4 left-4 z-50 bg-background/80 backdrop-blur-sm shadow-sm"
       aria-label="Open sidebar"
     >
       <PanelLeft className="h-4 w-4" />

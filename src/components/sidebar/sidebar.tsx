@@ -8,9 +8,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { FileText, Variable, HelpCircle, ChevronDown, PanelLeftClose } from "lucide-react";
+import {
+  FileText,
+  Variable,
+  HelpCircle,
+  ChevronDown,
+  PanelLeftClose,
+  LogOut,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface Section {
   id: string;
@@ -25,6 +33,9 @@ interface SidebarProps {
   onNavigate: (sectionId: string) => void;
   faqCounts?: Record<string, number>;
   loading?: boolean;
+  userEmail?: string | null;
+  onSignOut?: () => void;
+  signOutDisabled?: boolean;
 }
 
 export function Sidebar({
@@ -35,6 +46,9 @@ export function Sidebar({
   onNavigate,
   faqCounts = {},
   loading = false,
+  userEmail,
+  onSignOut,
+  signOutDisabled = false,
 }: SidebarProps) {
   const [faqsExpanded, setFaqsExpanded] = useState(true);
 
@@ -45,7 +59,7 @@ export function Sidebar({
       {/* Backdrop for mobile */}
       <div
         className={cn(
-          "fixed inset-0 z-30 bg-black/50 lg:hidden",
+          "fixed inset-0 z-30 bg-black/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={onToggle}
@@ -56,15 +70,15 @@ export function Sidebar({
       <aside
         className={cn(
           "fixed top-0 left-0 z-40 h-screen w-64",
-          "bg-sidebar border-r border-sidebar-border",
-          "flex flex-col",
+          "bg-sidebar/90 backdrop-blur-md border-r border-sidebar-border shadow-lg",
+          "flex flex-col transition-transform duration-300 ease-out",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border shrink-0">
-          <span className="font-semibold text-sidebar-foreground">
-            Navigation
+        <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border/70 shrink-0">
+          <span className="text-sm font-semibold text-sidebar-foreground">
+            Knowledge Base
           </span>
           <Button
             variant="ghost"
@@ -77,7 +91,7 @@ export function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto sidebar-scroll p-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto sidebar-scroll p-4 space-y-1">
           {loading ? (
             <>
               <Skeleton className="h-9 w-full rounded-md" />
@@ -112,7 +126,7 @@ export function Sidebar({
                 <CollapsibleTrigger asChild>
                   <button
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm",
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
                       "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                       isFaqActive
                         ? "text-sidebar-accent-foreground font-medium"
@@ -126,7 +140,7 @@ export function Sidebar({
                     </span>
                     <ChevronDown
                       className={cn(
-                        "h-4 w-4 shrink-0",
+                        "h-4 w-4 shrink-0 transition-transform",
                         faqsExpanded && "rotate-180"
                       )}
                     />
@@ -159,9 +173,26 @@ export function Sidebar({
 
         {/* Footer */}
         <div className="p-3 border-t border-sidebar-border shrink-0">
-          <p className="text-xs text-sidebar-foreground/60 text-center">
-            Knowledge Base
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <ThemeToggle className="h-8 w-8" />
+            {userEmail && (
+              <span className="text-xs text-sidebar-foreground/70 truncate max-w-[9rem]">
+                {userEmail}
+              </span>
+            )}
+          </div>
+          {onSignOut && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSignOut}
+              disabled={signOutDisabled}
+              className="mt-3 w-full"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign out
+            </Button>
+          )}
         </div>
       </aside>
     </>

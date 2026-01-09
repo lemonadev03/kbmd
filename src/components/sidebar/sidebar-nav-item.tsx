@@ -23,7 +23,7 @@ export function SidebarNavItem({
     <button
       onClick={onClick}
       className={cn(
-        "relative w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm",
+        "relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         indent && "pl-9",

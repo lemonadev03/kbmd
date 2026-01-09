@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { FAQSection } from "@/components/faq-section";
 import { VariablesSection } from "@/components/variables-section";
 import { CustomRulesSection } from "@/components/custom-rules-section";
@@ -11,7 +12,15 @@ import { useActiveSection } from "@/hooks/use-active-section";
 import { useSearchNavigation } from "@/hooks/use-search-navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Download, Plus, ChevronUp, ChevronDown, X } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+import {
+  Search,
+  Download,
+  Plus,
+  ChevronUp,
+  ChevronDown,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
 import { ContentSkeleton } from "@/components/content-skeleton";
@@ -54,6 +63,9 @@ interface FAQ {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const session = authClient.useSession();
+
   const [sections, setSections] = useState<Section[]>([]);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [faqDraftById, setFaqDraftById] = useState<Record<string, FAQ>>({});
@@ -74,6 +86,15 @@ export default function Home() {
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
   const { activeSection, scrollToSection } = useActiveSection(sections);
+
+  const handleSignOut = async () => {
+    try {
+      await authClient.signOut();
+    } finally {
+      router.replace("/sign-in");
+      router.refresh();
+    }
+  };
 
   const refreshData = async (initialLoad = false) => {
     if (initialLoad) setIsLoading(true);
@@ -416,7 +437,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen app-shell">
       {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -426,89 +447,103 @@ export default function Home() {
         onNavigate={scrollToSection}
         faqCounts={faqCounts}
         loading={isLoading}
+        userEmail={session.data?.user?.email}
+        onSignOut={handleSignOut}
+        signOutDisabled={session.isPending}
       />
 
       {/* Toggle Button */}
       <SidebarToggle isOpen={sidebarOpen} onToggle={toggleSidebar} />
 
       {/* Main Content */}
-      <main className={cn(sidebarOpen ? "lg:ml-64" : "ml-0")}>
+      <main
+        className={cn(
+          "transition-[margin] duration-300 ease-out",
+          sidebarOpen ? "lg:ml-64" : "ml-0"
+        )}
+      >
         <div
           className={cn(
-            "max-w-7xl mx-auto px-4 py-6",
+            "max-w-6xl mx-auto px-4 pb-12 pt-8",
             hasPendingFaqChanges || hasPendingCustomRulesChanges ? "pb-28" : ""
           )}
         >
-          <header className="mb-6">
-            <h1 className="text-3xl font-bold mb-1">Knowledge Base</h1>
-            <p className="text-muted-foreground">
-              Click any cell to edit · Markdown supported · Changes save when
-              you click "Save changes"
-            </p>
-          </header>
+          <div className="mb-6 animate-fade-up" />
 
-          <div className="flex gap-4 mb-6 sticky top-0 z-20 bg-background py-2 -mt-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search FAQs..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (e.shiftKey) {
-                      goToPrev();
-                    } else {
-                      goToNext();
-                    }
-                  }
-                  if (e.key === "Escape") {
-                    setSearchQuery("");
-                  }
-                }}
-                className={cn("pl-10", searchQuery && "pr-36")}
-              />
-              {searchQuery && (
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
-                  <span className="text-xs text-muted-foreground tabular-nums min-w-[4rem] text-right">
-                    {totalMatches > 0
-                      ? `${currentMatchIndex} of ${totalMatches}`
-                      : "No matches"}
-                  </span>
+          <div
+            className="sticky top-3 z-20 mb-8 animate-fade-up"
+            style={{ animationDelay: "40ms" }}
+          >
+            <div className="rounded-2xl border bg-background/80 backdrop-blur-md shadow-sm px-3 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search FAQs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                          goToPrev();
+                        } else {
+                          goToNext();
+                        }
+                      }
+                      if (e.key === "Escape") {
+                        setSearchQuery("");
+                      }
+                    }}
+                    className={cn(
+                      "pl-10 bg-background/70",
+                      searchQuery && "pr-36"
+                    )}
+                  />
+                  {searchQuery && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground tabular-nums min-w-[4rem] text-right">
+                        {totalMatches > 0
+                          ? `${currentMatchIndex} of ${totalMatches}`
+                          : "No matches"}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={goToPrev}
+                        disabled={totalMatches === 0}
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={goToNext}
+                        disabled={totalMatches === 0}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setSearchQuery("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={goToPrev}
-                    disabled={totalMatches === 0}
+                    variant="outline"
+                    onClick={() => setShowExportModal(true)}
                   >
-                    <ChevronUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={goToNext}
-                    disabled={totalMatches === 0}
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <X className="h-4 w-4" />
+                    <Download className="h-4 w-4 mr-2" />
+                    Export MD
                   </Button>
                 </div>
-              )}
+              </div>
             </div>
-            <Button variant="outline" onClick={() => setShowExportModal(true)}>
-              <Download className="h-4 w-4 mr-2" />
-              Export MD
-            </Button>
           </div>
 
           {isLoading ? (
@@ -516,7 +551,11 @@ export default function Home() {
           ) : (
             <>
               {/* Custom Rules */}
-              <div id="section-custom-rules" className="scroll-mt-4">
+              <div
+                id="section-custom-rules"
+                className="scroll-mt-24 animate-fade-up"
+                style={{ animationDelay: "80ms" }}
+              >
                 <CustomRulesSection
                   content={customRulesContent}
                   onUpdate={handleUpdateCustomRules}
@@ -527,7 +566,11 @@ export default function Home() {
               </div>
 
               {/* Variables */}
-              <div id="section-variables" className="scroll-mt-4">
+              <div
+                id="section-variables"
+                className="scroll-mt-24 animate-fade-up"
+                style={{ animationDelay: "140ms" }}
+              >
                 <VariablesSection
                   variables={variables}
                   onCreate={handleCreateVariable}
@@ -540,21 +583,30 @@ export default function Home() {
 
               {/* Sections */}
               {sections.map((section, index) => (
-                <div key={section.id}>
+                <div
+                  key={section.id}
+                  className="animate-fade-up"
+                  style={{
+                    animationDelay: `${Math.min(index, 6) * 60 + 200}ms`,
+                  }}
+                >
                   {index > 0 && (
                     <div
-                      className="group flex items-center gap-2 py-1 my-2 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
+                      className="group flex items-center gap-2 py-1 my-6 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
                       onClick={() => setShowNewSection(true)}
                     >
                       <div className="flex-1 h-px bg-border" />
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
                         <Plus className="h-3 w-3" />
                         Add section
                       </span>
                       <div className="flex-1 h-px bg-border" />
                     </div>
                   )}
-                  <div id={`section-faq-${section.id}`} className="scroll-mt-4">
+                  <div
+                    id={`section-faq-${section.id}`}
+                    className="scroll-mt-24"
+                  >
                     <FAQSection
                       section={section}
                       faqs={getFaqsForSection(section.id)}
@@ -573,56 +625,64 @@ export default function Home() {
             </>
           )}
 
-        {/* Add Section */}
-        {!isLoading && (
-          <>
-            {showNewSection ? (
-              <div className="flex items-center gap-2 mb-8">
-                <Input
-                  value={newSectionName}
-                  onChange={(e) => setNewSectionName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateSection();
-                    if (e.key === "Escape") {
-                      setShowNewSection(false);
-                      setNewSectionName("");
-                    }
-                  }}
-                  placeholder="Section name..."
-                  autoFocus
-                  className="w-64"
-                />
-                <Button onClick={handleCreateSection} disabled={!newSectionName.trim()}>
-                  Add
-                </Button>
+          {/* Add Section */}
+          {!isLoading && (
+            <div
+              className="mb-10 animate-fade-up"
+              style={{ animationDelay: "320ms" }}
+            >
+              {showNewSection ? (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border bg-card/70 p-4 shadow-sm">
+                  <Input
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateSection();
+                      if (e.key === "Escape") {
+                        setShowNewSection(false);
+                        setNewSectionName("");
+                      }
+                    }}
+                    placeholder="Section name..."
+                    autoFocus
+                    className="w-full sm:w-64"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleCreateSection}
+                      disabled={!newSectionName.trim()}
+                    >
+                      Add
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowNewSection(false);
+                        setNewSectionName("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setShowNewSection(false);
-                    setNewSectionName("");
-                  }}
+                  onClick={() => setShowNewSection(true)}
+                  className="w-full sm:w-auto"
                 >
-                  Cancel
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Section
                 </Button>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => setShowNewSection(true)}
-                className="mb-8"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Section
-              </Button>
-            )}
+              )}
 
-            {sections.length === 0 && !showNewSection && (
-              <div className="text-center py-12 text-muted-foreground">
-                No sections yet. Create your first section to get started!
-              </div>
-            )}
-          </>
-        )}
+              {sections.length === 0 && !showNewSection && (
+                <div className="mt-6 rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
+                  No sections yet. Create your first section to get started!
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Export Modal */}
           <ExportModal
@@ -645,7 +705,7 @@ export default function Home() {
           style={{ bottom: hasPendingCustomRulesChanges ? "7rem" : "1rem" }}
         >
           <div className="mx-auto max-w-3xl">
-            <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
+            <div className="bg-card/90 backdrop-blur-md border border-border/60 rounded-2xl shadow-xl p-4 flex items-center justify-between gap-4 animate-fade-in">
               <div className="min-w-0">
                 <div className="font-medium text-sm">Unsaved changes</div>
                 <div className="text-xs text-muted-foreground">
@@ -690,7 +750,7 @@ export default function Home() {
           )}
         >
           <div className="mx-auto max-w-3xl">
-            <div className="bg-background border rounded-lg shadow-lg p-4 flex items-center justify-between gap-4">
+            <div className="bg-card/90 backdrop-blur-md border border-border/60 rounded-2xl shadow-xl p-4 flex items-center justify-between gap-4 animate-fade-in">
               <div className="min-w-0">
                 <div className="font-medium text-sm">Unsaved custom rules</div>
                 <div className="text-xs text-muted-foreground">

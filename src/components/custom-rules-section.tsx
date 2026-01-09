@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, FileText, Eye, Edit } from "lucide-react";
+import { Eye, Edit } from "lucide-react";
 import { HighlightText } from "./highlight-text";
 
 interface CustomRulesSectionProps {
@@ -24,7 +24,6 @@ export function CustomRulesSection({
   searchQuery = "",
   currentMatchId = null,
 }: CustomRulesSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
   const [editValue, setEditValue] = useState(content);
   const [isPreview, setIsPreview] = useState(false);
 
@@ -39,18 +38,9 @@ export function CustomRulesSection({
   };
 
   return (
-    <Card className="mb-6">
-      <CardHeader
-        className="cursor-pointer select-none py-3 sticky top-12 z-10 bg-card rounded-t-lg"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <CardTitle className="flex items-center gap-2 text-lg">
-          {isExpanded ? (
-            <ChevronDown className="h-5 w-5" />
-          ) : (
-            <ChevronRight className="h-5 w-5" />
-          )}
-          <FileText className="h-5 w-5" />
+    <section className="mb-8">
+      <div className="sticky top-24 z-10 bg-background/95 backdrop-blur border-b border-border/60 py-2">
+        <h2 className="text-lg font-semibold tracking-tight">
           {searchQuery ? (
             <HighlightText
               text="Custom Rules"
@@ -61,20 +51,17 @@ export function CustomRulesSection({
           ) : (
             "Custom Rules"
           )}
-        </CardTitle>
-      </CardHeader>
+        </h2>
+      </div>
 
-      {isExpanded && (
+      <Card className="mt-3">
         <CardContent>
           <div className="flex justify-end mb-2">
             <div className="flex gap-1">
               <Button
                 variant={!isPreview ? "secondary" : "ghost"}
                 size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsPreview(false);
-                }}
+                onClick={() => setIsPreview(false)}
               >
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
@@ -82,10 +69,7 @@ export function CustomRulesSection({
               <Button
                 variant={isPreview ? "secondary" : "ghost"}
                 size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsPreview(true);
-                }}
+                onClick={() => setIsPreview(true)}
               >
                 <Eye className="h-4 w-4 mr-1" />
                 Preview
@@ -94,7 +78,7 @@ export function CustomRulesSection({
           </div>
 
           {isPreview ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none border rounded-md p-4 min-h-[200px]">
+            <div className="prose prose-sm dark:prose-invert max-w-none border border-border/60 rounded-xl p-4 min-h-[200px] bg-background/70">
               {editValue ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {editValue}
@@ -107,17 +91,17 @@ export function CustomRulesSection({
             <Textarea
               value={editValue}
               onChange={(e) => handleChange(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
               placeholder="Enter custom rules in Markdown format..."
               className="min-h-[200px] font-mono text-sm resize-y"
             />
           )}
 
           <p className="text-xs text-muted-foreground mt-2">
-            Define custom rules and logic that are not bound to specific FAQs. Supports Markdown formatting.
+            Define custom rules and logic that are not bound to specific FAQs.
+            Supports Markdown formatting.
           </p>
         </CardContent>
-      )}
-    </Card>
+      </Card>
+    </section>
   );
 }

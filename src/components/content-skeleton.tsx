@@ -6,34 +6,34 @@ export function ContentSkeleton() {
   return (
     <>
       {/* Custom Rules Section Skeleton */}
-      <div className="mb-6 border rounded-lg">
-        <div className="p-3 flex items-center gap-2 border-b">
-          <Skeleton className="h-5 w-5" />
-          <Skeleton className="h-5 w-5" />
+      <div className="mb-6">
+        <div className="mb-3">
           <Skeleton className="h-5 w-32" />
         </div>
-        <div className="p-4">
-          <Skeleton className="h-40 w-full rounded-md" />
+        <div className="border rounded-2xl bg-card/80 shadow-sm">
+          <div className="p-4">
+            <Skeleton className="h-40 w-full rounded-md" />
+          </div>
         </div>
       </div>
 
       {/* Variables Section Skeleton */}
-      <div className="mb-6 border rounded-lg">
-        <div className="p-3 flex items-center gap-2">
-          <Skeleton className="h-4 w-4" />
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-4 w-8" />
+      <div className="mb-6">
+        <div className="mb-3">
+          <Skeleton className="h-5 w-24" />
         </div>
-        <div className="border-t p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-7 w-28 rounded" />
-            <Skeleton className="h-4 w-3" />
-            <Skeleton className="h-7 flex-1 rounded" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-7 w-36 rounded" />
-            <Skeleton className="h-4 w-3" />
-            <Skeleton className="h-7 flex-1 rounded" />
+        <div className="border rounded-2xl bg-card/80 shadow-sm">
+          <div className="p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-7 w-28 rounded" />
+              <Skeleton className="h-4 w-3" />
+              <Skeleton className="h-7 flex-1 rounded" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-7 w-36 rounded" />
+              <Skeleton className="h-4 w-3" />
+              <Skeleton className="h-7 flex-1 rounded" />
+            </div>
           </div>
         </div>
       </div>
@@ -44,9 +44,9 @@ export function ContentSkeleton() {
           <div className="flex items-center gap-2 mb-3">
             <Skeleton className="h-7 w-44" />
           </div>
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-2xl overflow-hidden bg-card/80 shadow-sm">
             {/* Header */}
-            <div className="flex bg-muted/50 border-b">
+            <div className="flex bg-muted/40 border-b border-border/60">
               <div className="w-[30%] p-2 px-3">
                 <Skeleton className="h-4 w-16" />
               </div>
