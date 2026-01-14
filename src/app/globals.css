@@ -144,6 +144,10 @@
   .animate-scale-in {
     animation: scale-in 0.35s ease-out both;
   }
+
+  .animate-phase-switch {
+    animation: phase-switch 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
 }
 
 @keyframes fade-up {
@@ -177,10 +181,22 @@
   }
 }
 
+@keyframes phase-switch {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .animate-fade-in,
-  .animate-scale-in {
+  .animate-scale-in,
+  .animate-phase-switch {
     animation: none !important;
   }
 }

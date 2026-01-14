@@ -1,0 +1,227 @@
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import * as schema from "../src/db/schema";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const db = drizzle(pool, { schema });
+
+// Data exported from Neon
+const variablesData = [
+  {
+    id: "54a1a406-b71a-4ab3-9eab-8e29c0b01a4c",
+    key: "ENROLLMENT_DATE",
+    value: "January 15, 2026",
+  },
+  {
+    id: "a9e1d41f-f685-41d4-aa83-8f0f8485c8a8",
+    key: "BYFFC_LINK",
+    value: "https://buildyourfirstfunnelchallenge.com/",
+  },
+];
+
+const phaseGroupsData = [
+  {
+    id: "eec043a6-25ee-41d0-8fe0-ecb2467096fa",
+    name: "FMA [Phases]",
+    order: 1,
+    created_at: new Date("2026-01-14T10:26:43.515Z"),
+  },
+];
+
+const sectionsData = [
+  {"id":"adec472b-774a-4ea0-8279-701229d58c6e","name":"Webinar","order":0,"created_at":new Date("2026-01-14T09:44:09.106Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"e140c967-473b-4270-8922-7371d61ad052","name":"General","order":1,"created_at":new Date("2026-01-09T08:57:53.862Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"66620fce-8944-4891-aa29-9d1af571fb49","name":"TECH REQUIREMENTS","order":2,"created_at":new Date("2026-01-09T09:10:58.486Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"70d7865f-30ab-4b8c-bb75-082a1d1b3844","name":"PORTAL / LOG IN ACCESS","order":3,"created_at":new Date("2026-01-09T08:58:16.975Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"b90fb2c3-1e70-43db-b881-0b648d7f1f2f","name":"REPLAYS","order":4,"created_at":new Date("2026-01-09T08:58:23.540Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"e5feff85-88ae-43fb-b135-57bb25b1c7c8","name":"PAYMENT / CONFIRMATION","order":5,"created_at":new Date("2026-01-09T08:58:40.211Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"7fee285b-50b9-4f1c-a7ac-2f0e3390c83a","name":"JOINING 3DFC + FREE WEBINAR","order":6,"created_at":new Date("2026-01-09T09:17:10.506Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"8e876b18-bd61-4977-a89a-2434fbc006b7","name":"TOOLS / SOFTWARE","order":7,"created_at":new Date("2026-01-09T09:17:15.863Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","name":"Q&As","order":8,"created_at":new Date("2026-01-09T09:17:27.013Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"d7afe412-d480-40fa-943f-eccd1b33794c","name":"OBJECTIONS","order":9,"created_at":new Date("2026-01-09T09:17:37.416Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","name":"TECHNICAL QUESTIONS","order":10,"created_at":new Date("2026-01-09T09:29:46.749Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"2efbed9a-46e9-47d6-b298-0fd9241ad446","name":"FMA - Open","order":11,"created_at":new Date("2026-01-09T09:17:46.147Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"7b3476c9-62de-46fc-b115-c121963f66eb","name":"FMA - Closed","order":12,"created_at":new Date("2026-01-09T09:17:53.791Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"a4d882fc-87a9-4709-af82-7c95b26034a6","name":"3DFC - CLOSED","order":13,"created_at":new Date("2026-01-09T09:28:40.533Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"737eec49-5c3e-4a62-8b3a-17079dc19430","name":"3DFC - ZOOM LINKS","order":14,"created_at":new Date("2026-01-09T09:23:37.549Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"b6d2f223-486e-4d7c-93e6-fe1f6bc037a7","name":"FMA - No Launch","order":15,"created_at":new Date("2026-01-14T10:26:13.581Z"),"phase_group_id":"eec043a6-25ee-41d0-8fe0-ecb2467096fa","phase_order":0},
+  {"id":"d36855c5-d606-4e0d-bb2a-9631d478c333","name":"FMA - Pre-launch","order":16,"created_at":new Date("2026-01-14T10:32:55.710Z"),"phase_group_id":"eec043a6-25ee-41d0-8fe0-ecb2467096fa","phase_order":1},
+  {"id":"4876cf02-5545-4792-a738-2eb3040b9333","name":"FMA - During","order":17,"created_at":new Date("2026-01-14T10:33:07.077Z"),"phase_group_id":"eec043a6-25ee-41d0-8fe0-ecb2467096fa","phase_order":2},
+  {"id":"c2eb3e16-c956-4669-8dcf-c37cdaf70f41","name":"FMA - After","order":18,"created_at":new Date("2026-01-14T10:33:15.754Z"),"phase_group_id":null,"phase_order":0},
+  {"id":"deaba1fc-8f6b-4797-a034-fd2bbe70dd1d","name":"FMA - Post-launch","order":20,"created_at":new Date("2026-01-14T18:29:45.675Z"),"phase_group_id":"eec043a6-25ee-41d0-8fe0-ecb2467096fa","phase_order":4},
+];
+
+const faqsData = [
+  {"id":"a5f3d11e-a439-4b9b-9c6e-a2576be59af5","section_id":"2efbed9a-46e9-47d6-b298-0fd9241ad446","question":"Wala pa akong budget ngayon. Pwede ba hulugan?","answer":"Yes, may installment options tayo. You can go the checkout page tapos makikita mo dyan yung payment options. Let me know if nakita mo. ","notes":"","created_at":new Date("2026-01-09T09:18:21.616Z"),"updated_at":new Date("2026-01-09T09:18:21.616Z"),"order":0},
+  {"id":"6555555b-e42d-4e7d-8b3a-9e4d6372f031","section_id":"2efbed9a-46e9-47d6-b298-0fd9241ad446","question":"May discount ba?","answer":"May mga biglaang additional discount si Coach Darla sa live webinar at 3DFC, pero may discount pa rin naman hanggang bukas ang FMA. ","notes":"","created_at":new Date("2026-01-09T09:18:35.229Z"),"updated_at":new Date("2026-01-09T09:18:35.229Z"),"order":1},
+  {"id":"41f7e67b-835c-4cad-bd73-1ffb22e44a8f","section_id":"2efbed9a-46e9-47d6-b298-0fd9241ad446","question":"Pwede ba kahit downpayment muna?","answer":"Yes, pwede naman installment muna. Pay the half today then the other half after 30 days. Here's the checkout page: ","notes":"","created_at":new Date("2026-01-09T09:18:44.597Z"),"updated_at":new Date("2026-01-09T09:18:44.597Z"),"order":2},
+  {"id":"153fd291-c080-479a-80b7-f3299b73eed5","section_id":"66620fce-8944-4891-aa29-9d1af571fb49","question":"What laptop specs do I need for funnel design?","answer":"\"For funnel design, you don't need a super high-end laptop. \n\nHere's what I recommend:\n✅ i5 (8th gen+) or Ryzen 5\n✅ 8GB RAM (16GB if multitasking)\n✅ 256GB SSD\n✅ Integrated graphics ok\n✅ Windows 10/11 or Mac OS\n\nPwede sa lower specs (like 4GB RAM), pero expect a bit of lag lalo na kapag sabay-sabay gamit ang Canva, Zoom, at browser. Tip: If tight ang budget, okay din mag-start sa 2nd-hand laptop with these specs.\"","notes":"","created_at":new Date("2026-01-09T09:26:46.009Z"),"updated_at":new Date("2026-01-09T09:26:46.009Z"),"order":0},
+  {"id":"3ba4fdce-cdf8-4142-891f-012ca6723355","section_id":"70d7865f-30ab-4b8c-bb75-082a1d1b3844","question":"Where can I access the portal?","answer":"Kindly check the email with the subject line "Important: Your access to training" — that's where we upload the recordings and resources.","notes":"","created_at":new Date("2026-01-09T09:22:23.551Z"),"updated_at":new Date("2026-01-09T17:14:54.256Z"),"order":0},
+  {"id":"6d7b7dca-69b4-41c5-996e-3f73f52870a1","section_id":"70d7865f-30ab-4b8c-bb75-082a1d1b3844","question":"I can't log in. What do I do?","answer":"Use your email as the username and set a new password by clicking Forgot Password here: https://challenge.funnelsmasteryacademy.com/dashboard/en/login","notes":"","created_at":new Date("2026-01-09T09:22:48.609Z"),"updated_at":new Date("2026-01-09T17:14:54.256Z"),"order":1},
+  {"id":"01a49c63-5149-495c-b98e-0525979f498d","section_id":"737eec49-5c3e-4a62-8b3a-17079dc19430","question":"Where is the Zoom link? (3DFC)","answer":"Check your email with the subject "3DFC" for the Zoom link. See you there!","notes":"not now","created_at":new Date("2026-01-09T09:24:31.269Z"),"updated_at":new Date("2026-01-14T09:34:04.575Z"),"order":0},
+  {"id":"ba6be26f-b42e-44a7-ae64-69ac18a8c72e","section_id":"7b3476c9-62de-46fc-b115-c121963f66eb","question":"Kelan mag-oopen?","answer":"FMA is priced at P50,000 but we provide huge discounts during launch. Join ka muna sa webinar to get the discounted rate!\n\nhttps://webinar.funnelsmasteryacademy.com/","notes":"","created_at":new Date("2026-01-09T09:18:53.783Z"),"updated_at":new Date("2026-01-14T10:18:00.441Z"),"order":0},
+  {"id":"fed3ccf1-d462-4f61-b6cf-68908e1b9d40","section_id":"7b3476c9-62de-46fc-b115-c121963f66eb","question":"Magkano po ba ang FMA?","answer":"FMA is priced at P50,000 but we provide huge discounts during launch. Join ka muna sa webinar to get the discounted rate!\n\nhttps://webinar.funnelsmasteryacademy.com/","notes":"","created_at":new Date("2026-01-09T09:19:03.065Z"),"updated_at":new Date("2026-01-14T10:18:00.441Z"),"order":1},
+  {"id":"5a4210bd-d2e3-4bdf-b2b3-f325cb2c4b75","section_id":"7fee285b-50b9-4f1c-a7ac-2f0e3390c83a","question":"How do I join 3DFC?","answer":"\"Here's the link to the upcoming 3 Day Funnel Challenge: https://www.fma3dayfunnelchallenge.com/\n\nHow to build a funnel, write a copy, and automation will be covered in this challenge :)\"","notes":"","created_at":new Date("2026-01-09T09:26:55.207Z"),"updated_at":new Date("2026-01-09T09:26:55.207Z"),"order":0},
+  {"id":"4ec413f0-dd37-428f-a673-138daff9cb26","section_id":"7fee285b-50b9-4f1c-a7ac-2f0e3390c83a","question":"How do I join the free webinar? ","answer":"Thank you for your interest in joining our FREE LIVE training on Funnel Design (date/time as announced). Register here to secure your spot: https://webinar.funnelsmasteryacademy.com","notes":"","created_at":new Date("2026-01-09T09:27:07.471Z"),"updated_at":new Date("2026-01-09T09:27:07.471Z"),"order":1},
+  {"id":"34f0dfbb-9af0-4b89-8fc7-87f69831fa80","section_id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","question":"\"If the user's question requires troubleshooting, screenshots, step-by-step debugging, or account-specific checking\n\nExamples: login issues, integrations, automations not firing, domain/DNS, email sending, GHL/Systeme bugs, checkout issues, Zapier/n8n, calendar embeds, pixel/UTM tracking.\"","answer":"\"I understand that you want this concern. We're here to help. Can you please fill out our support ticket form so we can get back to you asap?\n\nhttps://funnelsmasteryacademy.com/support\"","notes":"","created_at":new Date("2026-01-09T09:31:07.196Z"),"updated_at":new Date("2026-01-09T09:31:07.196Z"),"order":0},
+  {"id":"11521aaa-b2e2-494d-a6d3-15c67e2b88b3","section_id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","question":""Something's not working" (with quick checklist)","answer":"\"Gets! 😅 Tech issues are best handled sa community support natin para ma-trace and maayos agad.\n\nPag post mo, include mo please:\n\n- Platform (Systeme/GHL/Funnel Pro)\n- What you expected vs what happened\n- What you tried already\n- Screenshot/video + error message\n\nMas mabilis ma-pinpoint yung fix pag kumpleto yung info.\"","notes":"","created_at":new Date("2026-01-09T09:34:32.057Z"),"updated_at":new Date("2026-01-09T09:34:32.057Z"),"order":1},
+  {"id":"3eeb0034-c5ea-4d78-b634-968c2baaaf8c","section_id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","question":"Help ASAP please, urgent tech issue.","answer":"\"Post mo now sa community support with screenshot/video + exact error message.\n\nDun kasi active yung mentors/support team so mas mabilis ang troubleshooting. \"","notes":"","created_at":new Date("2026-01-09T09:35:47.188Z"),"updated_at":new Date("2026-01-09T09:35:47.188Z"),"order":2},
+  {"id":"f7f1bd34-541a-4d1e-8758-186559333eea","section_id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","question":"Di ako makalogin / di gumagana reset password.","answer":"\"Since account-specific 'to, sa Support Ticket Form natin siya ipapadaan para ma-check properly ng team.\n\nPlease fill it out here: https://funnelsmasteryacademy.com/support\n\nThen wait for the team to address it within a few hours\"","notes":"","created_at":new Date("2026-01-09T09:35:47.188Z"),"updated_at":new Date("2026-01-09T09:35:47.188Z"),"order":3},
+  {"id":"c5635614-83b9-4297-95a3-c834b9a323eb","section_id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","question":"Paano i-setup yung (email, domain, automation, payment, etc.)?","answer":"\"For step-by-step tech setup, sa community natin siya pinopost para may screenshots + guidance from mentors.\n\nPost mo dun and include: platform + goal mo + current setup + screenshots. Mas mabilis ka nilang matutulungan. 🙌\"","notes":"","created_at":new Date("2026-01-09T09:36:44.415Z"),"updated_at":new Date("2026-01-09T09:36:44.415Z"),"order":4},
+  {"id":"64123239-c23f-4397-94a3-bd2c8041ef94","section_id":"808d4fed-8017-42b3-aeb0-f39f90034eb8","question":"I have a technical issue, can you help?","answer":"We're happy to help!\n\nPlease fill out the ticket here: https://funnelsmasteryacademy.com/support\n\nOnce submitted, our support team will review and get back to you through the details you provided.","notes":"","created_at":new Date("2026-01-09T09:55:12.286Z"),"updated_at":new Date("2026-01-09T09:55:12.286Z"),"order":5},
+  {"id":"48a54389-3ea7-4008-86b4-8070ab5dd6c5","section_id":"8e876b18-bd61-4977-a89a-2434fbc006b7","question":"May mga software po ba kaming kailangan pagka-enroll para magawa yung course?","answer":"All softwares used in the program are all free. ","notes":"","created_at":new Date("2026-01-09T09:27:18.246Z"),"updated_at":new Date("2026-01-09T09:27:18.246Z"),"order":0},
+  {"id":"a8bc959a-a08b-468c-a68b-4c874fb28f66","section_id":"a4d882fc-87a9-4709-af82-7c95b26034a6","question":"When is the next 3DFC?","answer":"\"The next 3 Day Funnel Challenge is scheduled on [insert date]. Here's the link to join: https://www.fma3dayfunnelchallenge.com/\n\nJoin ka na kasi limited lang yan :) \"","notes":"Not now","created_at":new Date("2026-01-09T09:28:47.623Z"),"updated_at":new Date("2026-01-14T09:28:32.922Z"),"order":0},
+  {"id":"93c032c7-aa23-4d9b-ac17-14acf0176d83","section_id":"adec472b-774a-4ea0-8279-701229d58c6e","question":"How do I join? (or say \"start\" or \"enroll\")","answer":"Register ka sa webinar natin this February 16 (Monday), 6PM for FREE: \n👉 https://webinar.funnelsmasteryacademy.com/\n\nLet me know if naka-sign up ka na!","notes":"","created_at":new Date("2026-01-14T09:44:54.630Z"),"updated_at":new Date("2026-01-14T09:50:52.010Z"),"order":0},
+  {"id":"5e0ab323-0427-4f4c-b01a-16111fceb761","section_id":"adec472b-774a-4ea0-8279-701229d58c6e","question":"3DFC","answer":"Ito na yung link to join the 3-Day Funnel Challenge:\n👉 https://www.fma3dayfunnelchallenge.com\n\n\nDito sa challenge na to, ituturo namin kung ano ang funnel, strategy, paano magsulat ng copy, pati na rin mag design at build! And yes, pang beginners ang challenge na to! \n\n\nP997 lang and you get 3 days live with the FMA Team (Feb 12-14) + lahat ng bonuses! May chance ka pa manalo ng FMA scholarship 😉\n\n\nLet me know pag naka-enroll ka na!! 🚀🔥","notes":"","created_at":new Date("2026-01-14T09:50:52.029Z"),"updated_at":new Date("2026-01-14T09:50:52.029Z"),"order":1},
+  {"id":"aa9cafda-fac1-4464-809b-0218f1ffeb97","section_id":"b90fb2c3-1e70-43db-b881-0b648d7f1f2f","question":"[Free Webinar] Where can I find the replay?","answer":"Here is the webinar replay :) https://webinar.funnelsmasteryacademy.com/replay-room","notes":"","created_at":new Date("2026-01-09T09:25:39.301Z"),"updated_at":new Date("2026-01-09T18:09:36.359Z"),"order":0},
+  {"id":"8d3f0de6-9e3f-4507-97aa-4a1f4b2008c4","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Full-time job ako. Kaya ko ba 'to?","answer":"Kayang-kaya! 😄 Self-paced yung lessons, ibig sabihin depende sayo kung gaano kabilis mo sya papanoorin. And yung live coaching calls, palaging may replays. What I can recommend is setting time kahit 1 hour per day to watch the course and do the activities.","notes":"","created_at":new Date("2026-01-09T09:18:24.564Z"),"updated_at":new Date("2026-01-09T09:18:24.564Z"),"order":0},
+  {"id":"c0f0c198-2477-4563-b233-051278748779","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Busy mom / may kids ako. Di ako sure if makakasabay ako.","answer":"Gets. Good thing about our courses ay Self-paced yung lessons, ibig sabihin depende sayo kung gaano kabilis mo sya papanoorin. And yung live coaching calls, palaging may replays. What I can recommend is setting time kahit 1 hour per day to watch the course and do the activities.","notes":"","created_at":new Date("2026-01-09T09:19:33.912Z"),"updated_at":new Date("2026-01-09T09:19:33.912Z"),"order":1},
+  {"id":"6b747183-ef9a-47cf-8821-67644534bffa","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Paano kung di ako maka-attend ng live calls?","answer":"Okay lang. Ang important is you still implement. Most of the time, may replay access naman so you can catch up. But I would really recommend na mag show up ka live kasi iba talaga energy pag live. ","notes":"","created_at":new Date("2026-01-09T09:19:40.123Z"),"updated_at":new Date("2026-01-09T09:19:40.123Z"),"order":2},
+  {"id":"7b41c021-0e26-454f-9797-b5b9fb9ff0e9","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Beginner ako. Wala akong experience. Baka di ko kayanin.","answer":"\"Gets. But that's what makes you perfect for funnel design 🙌 Step-by-step yung training sa mga courses sa FMA. Ang requirement lang: willingness matuto + mag-apply. \n\nThen upsell to low ticket course\"","notes":"","created_at":new Date("2026-01-09T09:19:47.524Z"),"updated_at":new Date("2026-01-09T09:19:47.524Z"),"order":3},
+  {"id":"c6fe7fd7-b4f8-488e-a4a1-b5d6c749fa61","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Di ako techy. Baka malito ako sa tools.","answer":"Normal yan. But the good news is kayang kaya matutunan. We guide you through the tools. Start ka muna sa basics, then learn things one step at a time.","notes":"Then upsell to low ticket course","created_at":new Date("2026-01-09T09:21:08.549Z"),"updated_at":new Date("2026-01-09T15:09:09.826Z"),"order":4},
+  {"id":"55f97e9a-e468-4fa0-aa78-708c5fa0350a","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Wala akong laptop na high-end. Pwede ba?","answer":"Yes. Di mo kailangan super high-end. Basta you can use the Internet, okay ka na kasi lahat web-based naman. ","notes":"","created_at":new Date("2026-01-09T09:25:24.462Z"),"updated_at":new Date("2026-01-09T09:25:24.462Z"),"order":5},
+  {"id":"71d57a86-a901-4a97-8d0c-c83fbd15a8d5","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Paano kung mag-enroll ako tapos di ako magka-client?","answer":"Paano kung magka-client ka? 😉 Totally understand, yan ang concern most of the students. But know that as long as you implement consistently yung tinuturo na outreach + portfolio, you will really get results. Try mo muna and don't overthink. ","notes":"","created_at":new Date("2026-01-09T09:25:38.881Z"),"updated_at":new Date("2026-01-09T09:25:38.881Z"),"order":6},
+  {"id":"b9919502-f0be-421d-b224-98f0ed54b21e","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Baka di ako magaling sa design.","answer":"Good news! Design is 100% learnable. Don't overthink lang, and start practicing. If you start doing it, mag-iimprove ka paunti-unti. ","notes":"","created_at":new Date("2026-01-09T09:25:44.980Z"),"updated_at":new Date("2026-01-09T09:25:44.980Z"),"order":7},
+  {"id":"a7d20ab4-d47c-43ef-a43e-a32adf8da164","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Paano kung mahina ako magbenta?","answer":"That's part of the process. You'll learn how to position your service, talk to leads, and offer your help confidently.","notes":"","created_at":new Date("2026-01-09T09:25:50.923Z"),"updated_at":new Date("2026-01-09T09:25:50.923Z"),"order":8},
+  {"id":"0302f5eb-6d02-403d-bff6-48ee01b60207","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Legit ba 'to? Parang too good to be true.","answer":"Fair question. Funnel design is a smart way of building your income na hindi kailangan ng maraming oras. If you want, you can get started with a simple course para ma-try mo muna then decide from there. ","notes":"After responding this, upsell the low ticket course.","created_at":new Date("2026-01-09T09:26:15.611Z"),"updated_at":new Date("2026-01-09T09:26:15.611Z"),"order":9},
+  {"id":"ce38d221-b42f-4940-b800-ec3b9717ebe8","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Marami na akong na-try na courses, wala naman nangyari.","answer":"Gets. Ganyan din ako actually 😅 But I realized kulang lang pala ako sa implementation system at feedback. Here in FMA, we give you structure and community support to keep you moving. ","notes":"","created_at":new Date("2026-01-09T09:26:22.762Z"),"updated_at":new Date("2026-01-09T09:26:22.762Z"),"order":10},
+  {"id":"8076ce94-dd1e-4cec-b58d-78ab35f46918","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"May refund ba? ","answer":"\"Generally, refunds are allowed within 7 days after enrollment if you haven't started the course yet. If you already started/accessed the course, non-refundable na. \n\nYou can view our terms and conditions here: https://funnelsmasteryacademy.com/terms-and-conditions\"","notes":"","created_at":new Date("2026-01-09T09:26:28.398Z"),"updated_at":new Date("2026-01-09T09:26:28.398Z"),"order":11},
+  {"id":"86d1c292-13c1-452b-b50d-0d0e22df746f","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Kailangan ba bumili ng tools/software?","answer":"Usually, no need bumili agad. Most tools we use have free versions or beginner-friendly options. Start ka muna with what you have, then upgrade later if needed.","notes":"","created_at":new Date("2026-01-09T09:26:34.627Z"),"updated_at":new Date("2026-01-09T09:27:51.905Z"),"order":12},
+  {"id":"208625e5-2d04-4ea1-a27e-3a92cc851ed2","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Systeme ba or GHL? Ano dapat ko unahin?","answer":"Depende sa goal mo. If beginner and gusto mo mabilis makabuild, start with the simpler option which is Systeme and free sya. ","notes":"","created_at":new Date("2026-01-09T09:26:40.287Z"),"updated_at":new Date("2026-01-09T09:26:40.287Z"),"order":13},
+  {"id":"4675c0bc-8f9d-463c-9787-33ffc0583332","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"I need to think about it muna.","answer":"Go lang. 😊 Quick question: what's your biggest hesitation... time, budget, confidence, or hindi ka sure sa course? Tell me which one, and I'll help you decide faster.","notes":"","created_at":new Date("2026-01-09T09:26:47.005Z"),"updated_at":new Date("2026-01-09T09:26:47.005Z"),"order":14},
+  {"id":"1209e2e2-77c2-47c6-a964-3e6e35bbdf69","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Pwede ba next batch na lang?","answer":"Pwede, pero note lang: next batch may have different pricing and bonuses. If you want the current offer, enroll before [Deadline].","notes":"","created_at":new Date("2026-01-09T09:26:55.690Z"),"updated_at":new Date("2026-01-09T09:26:55.690Z"),"order":15},
+  {"id":"523d37dc-e064-494b-aa40-6c08c3e56508","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Is it in full English? ","answer":"The main course lessons are in English while the coaching sessions are in Filipino. ","notes":"","created_at":new Date("2026-01-09T09:27:49.644Z"),"updated_at":new Date("2026-01-09T09:27:49.644Z"),"order":16},
+  {"id":"ac330ec9-c81f-418f-8db4-115c9ebb99c7","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Paano po kumita dito? ","answer":"Pwede kang maghanap ng multiple clients or mag-apply sa full time job sa funnel designer. ","notes":"","created_at":new Date("2026-01-09T09:28:03.427Z"),"updated_at":new Date("2026-01-09T09:28:03.427Z"),"order":17},
+  {"id":"d195b4be-7313-4e5b-8757-9b44060e2bc1","section_id":"d7afe412-d480-40fa-943f-eccd1b33794c","question":"Ok lang ba phone ang gamit na gadget?","answer":"Pwede! Magsimula ka na mag-aral gamit yung phone mo pero I recommend manghiram from your relatives or friends kahit simpleng laptop lang para mas madali. ","notes":"","created_at":new Date("2026-01-09T09:28:23.903Z"),"updated_at":new Date("2026-01-09T09:28:23.903Z"),"order":18},
+  {"id":"4dd546bc-8411-4100-a8bf-5d81ca102878","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"Pwede po ba ito sa beginner kahit walang experience?","answer":"Yes. Beginner-friendly ito. Step-by-step yung training, and you'll be guided from basics to execution. If you tell me your current skill level (VA/SMM/student/OFW/etc.), I can recommend the best starting path inside the program.","notes":"","created_at":new Date("2026-01-09T09:27:29.823Z"),"updated_at":new Date("2026-01-09T09:27:29.823Z"),"order":0},
+  {"id":"b33d9642-7a1c-4c89-81b2-cd57bf569c18","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"Ilang months access ng FMA/course? ","answer":"You will have 12 months access sa course and sa community once you join. ","notes":"","created_at":new Date("2026-01-09T09:27:42.876Z"),"updated_at":new Date("2026-01-09T09:27:42.876Z"),"order":1},
+  {"id":"68546628-4487-475a-b855-3f0fd83a4862","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"Can I get a replay if I can't attend live?","answer":"Not sure if there's a replay, but if meron, abangan mo lang sa email mo. ","notes":"","created_at":new Date("2026-01-09T09:27:49.319Z"),"updated_at":new Date("2026-01-09T09:27:49.319Z"),"order":2},
+  {"id":"28996dfa-1b1b-400d-93d1-ee5a54907f39","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"Free po ba talaga yung webinar? May babayaran ba after?","answer":"The webinar is free to attend. After that, you'll be invited to join the paid programs if you want deeper implementation, but you're not required to purchase to attend the free session.","notes":"","created_at":new Date("2026-01-09T09:27:57.877Z"),"updated_at":new Date("2026-01-09T09:27:57.877Z"),"order":3},
+  {"id":"c80b67fb-8d08-4110-9778-1be6afa642ac","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"Guaranteed ba na magkaka-client ako pag nag-enroll?","answer":"Results depend on implementation. What you'll get is the roadmap, systems, and execution guidance, then we help you take consistent action so you can land clients.","notes":"","created_at":new Date("2026-01-09T09:28:13.441Z"),"updated_at":new Date("2026-01-09T09:28:13.441Z"),"order":4},
+  {"id":"c9a43b6a-235e-4165-97c6-05df4319fa1b","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"When will FMA open again? / When will 3DFC open again?","answer":"We announce the next opening dates publicly when the schedule is finalized. Share which program you want (FMA / 3DFC) and I'll tell you the next best step you can take right now.","notes":"","created_at":new Date("2026-01-09T09:28:30.945Z"),"updated_at":new Date("2026-01-09T09:28:30.945Z"),"order":5},
+  {"id":"f4074e4c-aa9a-4555-9bfb-56a17ecf7cc8","section_id":"d7b2d026-6169-46ed-ad5a-07463bd63c75","question":"Wala po akong budget. Paano ako makaka-start?","answer":"If budget is tight, start with the most beginner-friendly course, Build Your First Funnel Challenge, so you can build skills + proof first, then upgrade to the full FMA course when ready.","notes":"","created_at":new Date("2026-01-09T09:28:39.029Z"),"updated_at":new Date("2026-01-09T09:28:39.029Z"),"order":6},
+  {"id":"80d33cab-36cb-4f4b-907a-fc45af124678","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"How?","answer":"You can get started with our free training here: \n\nIf gusto mo ng structured course, we have the Build Your First Funnel Challenge (BYFFC). Beginner-friendly training siya na step-by-step, kahit wala kang experience okay na okay lang.   \n\nKahit zero tech skills, sabay mong mabubuo yung first funnel mo using Systeme or GoHighLevel, plus templates + bonuses para mas madali for only P997. Here's the link: https://buildyourfirstfunnelchallenge.com/","notes":"","created_at":new Date("2026-01-09T08:58:47.789Z"),"updated_at":new Date("2026-01-09T15:19:24.328Z"),"order":0},
+  {"id":"ae40a5a4-31d6-44f1-96d7-3213c0757e64","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"Hi!","answer":"How can I help?","notes":"","created_at":new Date("2026-01-09T08:59:26.906Z"),"updated_at":new Date("2026-01-14T09:57:48.594Z"),"order":1},
+  {"id":"20941773-050b-4833-a0d1-e9d38ae32a2a","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"How to join","answer":"Sobrang perfect start yung BYFFC (Build Your First Funnel Challenge). Beginner-friendly training siya na step-by-step, kahit wala kang experience okay na okay lang.   \n\nKahit zero tech skills, sabay mong mabubuo yung first funnel mo using Systeme or GoHighLevel, plus templates + bonuses para mas madali for only P997. Here's the link: https://buildyourfirstfunnelchallenge.com/\"","notes":"","created_at":new Date("2026-01-09T09:01:22.957Z"),"updated_at":new Date("2026-01-09T17:14:39.572Z"),"order":2},
+  {"id":"21c7de22-fc26-4773-8200-6046dfaaa104","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"What is a funnel?","answer":"A funnel is basically a simple step-by-step path that turns a stranger into a lead, then into a buyer.\n\nIf you want the easiest way to understand it (and actually build your first one), you should join our 3DFC (3-Day Funnel Challenge)! 🙌\n\nThis is a beginner-friendly live training where we guide you step-by-step in building and launching your first funnel—even with no experience. We'll be live on Zoom, with free 2-week replays, pero mas solid talaga ang experience kapag live ka.\n\nHere's where you can join: https://fma3dayfunnelchallenge.com/","notes":"","created_at":new Date("2026-01-09T09:03:29.575Z"),"updated_at":new Date("2026-01-14T11:51:15.439Z"),"order":3},
+  {"id":"b136d724-ad68-41eb-a61d-a7c2a1458f64","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"I am interested in doing funnels. Just don't know where and how to start.","answer":"Congrats na agad for learning about funnel design!   \n\nSobrang perfect start yung BYFFC (Build Your First Funnel Challenge). Beginner-friendly training siya na step-by-step, kahit wala kang experience okay na okay lang.\n\nKahit zero tech skills, sabay mong mabubuo yung first funnel mo using Systeme or GoHighLevel, plus templates + bonuses para mas madali for only P997. Here's the link: https://buildyourfirstfunnelchallenge.com/","notes":"","created_at":new Date("2026-01-09T09:03:48.166Z"),"updated_at":new Date("2026-01-14T11:27:10.837Z"),"order":4},
+  {"id":"a779ae14-f03b-4354-9362-fc4699eee015","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"FMA student discount sa Funnel Pro ","answer":"\"Here's the exclusive discounted link for FMA students to avail Funnel Pro:\n https://funnelpro.ph/fma-promo\n\nLet me know once you've subscribed! \"","notes":"","created_at":new Date("2026-01-09T09:19:25.363Z"),"updated_at":new Date("2026-01-09T09:19:25.363Z"),"order":5},
+  {"id":"042e304d-3b15-452b-9f47-77ebc5b510ad","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"How to start, what is systeme, paano mag funnel","answer":"\"Start with this free mini course. Just watch Lessons 1 to 5 and you'll already be able to build your first funnel:\n\n👉 https://www.youtube.com/playlist?list=PLqFyxyU3o2L1fNsviUPlwNJmzcr_9vL7a\n\nAnd if you prefer a full walkthrough, here's a 40-minute tutorial I made where I show you exactly how to do it, step by step:\n\n👉 https://www.youtube.com/watch?v=efLZ6hoSXHc&t=55s\"","notes":"","created_at":new Date("2026-01-09T09:19:40.628Z"),"updated_at":new Date("2026-01-09T09:19:40.628Z"),"order":6},
+  {"id":"8f20195b-6044-4636-9ef6-f79ac16997d3","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"Do you have free webinar","answer":"Yes, register ka lang dito: https://webinar.funnelsmasteryacademy.com/","notes":"","created_at":new Date("2026-01-09T09:19:53.830Z"),"updated_at":new Date("2026-01-09T09:36:05.776Z"),"order":7},
+  {"id":"92ab4287-1e5c-4fdf-9bd4-b6a09afab141","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"Where is my course access, wala po akong access","answer":"\"Kindly check your email with the subject line "Important: Your Access to Training."\n\nIf you don't see it in your inbox, please check your Spam or Promotions folder. You can also search the subject line in the search bar to find it easily.\"","notes":"","created_at":new Date("2026-01-09T09:20:04.455Z"),"updated_at":new Date("2026-01-09T16:35:24.700Z"),"order":8},
+  {"id":"3f4fecdf-e50a-4b4f-a985-cb316ee5fe6f","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"Hanggang kailan ang enrollment?","answer":"Enrollment is open until {ENROLLMENT_DATE}. You can join here: https://course.funnelsmasteryacademy.com/","notes":"","created_at":new Date("2026-01-09T09:20:33.069Z"),"updated_at":new Date("2026-01-09T09:20:33.069Z"),"order":9},
+  {"id":"53e9808d-df2b-439a-b917-3d47f1c7f113","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"Can I join community or group?","answer":"Join ka dito and make sure to answer ALL questions: \n👉 https://www.facebook.com/groups/funnelsmasterycommunity\n\nLet me know if naka-join ka na!\"","notes":"","created_at":new Date("2026-01-09T09:20:42.411Z"),"updated_at":new Date("2026-01-14T11:28:50.935Z"),"order":10},
+  {"id":"43199b89-295d-41a6-93ac-ea3fd5ecd28e","section_id":"e140c967-473b-4270-8922-7371d61ad052","question":"Pwede ba dito walang experience?","answer":"Sobrang perfect start yung BYFFC (Build Your First Funnel Challenge). Beginner-friendly training siya na step-by-step, kahit wala kang experience okay na okay lang.   \n\nKahit zero tech skills, sabay mong mabubuo yung first funnel mo using Systeme or GoHighLevel, plus templates + bonuses para mas madali for only P997. Here's the link: https://buildyourfirstfunnelchallenge.com/\"","notes":"","created_at":new Date("2026-01-09T09:20:56.162Z"),"updated_at":new Date("2026-01-09T17:14:23.750Z"),"order":11},
+  {"id":"b8a14871-156d-4354-87f8-33e23378d3c9","section_id":"e5feff85-88ae-43fb-b135-57bb25b1c7c8","question":"I can't find my confirmation email.","answer":"Thanks for enrolling in FMA! If you paid via GCash and BDO, please allow 24–48 hours to receive your confirmation email.","notes":"","created_at":new Date("2026-01-09T09:26:35.688Z"),"updated_at":new Date("2026-01-09T09:26:35.688Z"),"order":0},
+];
+
+const customRulesData = [
+  {
+    id: "26ceacb9-8f4e-499c-a8f2-8dea97b0442a",
+    content: `# Mental Notes
+How to Enroll/Join/Start = https://www.fmafreewebinar.com/
+
+Uses Keyword "3DFC" = https://www.fma3dayfunnelchallenge.com/
+If they want to join a live training, use this and mention these points.
+- it is beginner friendly
+- live on Feb 12-14
+- we go live sa zoom
+- we provide free 2 weeks replay
+- we highly encourage you to join live kasi iba energy pag live "
+
+
+Uses Keyword "BYFFC" = https://buildyourfirstfunnelchallenge.com/
+If they want to learn right now and not wait for long, use this and mention these points.
+- lifetime access
+- beginner friendly
+- they learn 2 funnel platforms: Systeme and GHL
+- instant access"
+
+Uses Keyword "Community" = https://www.facebook.com/groups/funnelsmasterycommunity
+If they want to join the free Facebook group, share that link.
+
+If they mention the keyword "Free" or "Libre" = https://www.fmafreewebinar.com/
+Use the link above.`,
+    created_at: new Date("2026-01-14T09:11:01.478Z"),
+    updated_at: new Date("2026-01-14T10:12:01.556Z"),
+  },
+];
+
+async function migrate() {
+  console.log("Starting data migration to Railway Postgres...\n");
+
+  try {
+    // Insert variables
+    console.log("Inserting variables...");
+    for (const v of variablesData) {
+      await db.insert(schema.variables).values(v).onConflictDoNothing();
+    }
+    console.log(`✓ Inserted ${variablesData.length} variables`);
+
+    // Insert phase groups
+    console.log("Inserting phase groups...");
+    for (const pg of phaseGroupsData) {
+      await db.insert(schema.phaseGroups).values({
+        id: pg.id,
+        name: pg.name,
+        order: pg.order,
+        createdAt: pg.created_at,
+      }).onConflictDoNothing();
+    }
+    console.log(`✓ Inserted ${phaseGroupsData.length} phase groups`);
+
+    // Insert sections
+    console.log("Inserting sections...");
+    for (const s of sectionsData) {
+      await db.insert(schema.sections).values({
+        id: s.id,
+        name: s.name,
+        order: s.order,
+        createdAt: s.created_at,
+        phaseGroupId: s.phase_group_id,
+        phaseOrder: s.phase_order,
+      }).onConflictDoNothing();
+    }
+    console.log(`✓ Inserted ${sectionsData.length} sections`);
+
+    // Insert FAQs
+    console.log("Inserting FAQs...");
+    for (const f of faqsData) {
+      await db.insert(schema.faqs).values({
+        id: f.id,
+        sectionId: f.section_id,
+        question: f.question,
+        answer: f.answer,
+        notes: f.notes,
+        order: f.order,
+        createdAt: f.created_at,
+        updatedAt: f.updated_at,
+      }).onConflictDoNothing();
+    }
+    console.log(`✓ Inserted ${faqsData.length} FAQs`);
+
+    // Insert custom rules
+    console.log("Inserting custom rules...");
+    for (const cr of customRulesData) {
+      await db.insert(schema.customRules).values({
+        id: cr.id,
+        content: cr.content,
+        createdAt: cr.created_at,
+        updatedAt: cr.updated_at,
+      }).onConflictDoNothing();
+    }
+    console.log(`✓ Inserted ${customRulesData.length} custom rules`);
+
+    console.log("\n✅ Data migration completed successfully!");
+  } catch (error) {
+    console.error("Migration failed:", error);
+    process.exit(1);
+  } finally {
+    await pool.end();
+  }
+}
+
+migrate();

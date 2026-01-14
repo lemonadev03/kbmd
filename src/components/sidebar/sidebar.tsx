@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, useMemo, type CSSProperties } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { SidebarNavItem } from "./sidebar-nav-item";
+import { PhaseGroupItem } from "./phase-group-item";
 import {
   DndContext,
   PointerSensor,
@@ -45,6 +47,14 @@ interface Section {
   id: string;
   name: string;
   order?: number;
+  phaseGroupId?: string | null;
+  phaseOrder?: number | null;
+}
+
+interface PhaseGroup {
+  id: string;
+  name: string;
+  order: number;
 }
 
 interface SidebarProps {
@@ -59,8 +69,23 @@ interface SidebarProps {
   faqCounts?: Record<string, number>;
   loading?: boolean;
   userEmail?: string | null;
+  userName?: string | null;
+  orgName?: string | null;
+  orgSettingsHref?: string;
   onSignOut?: () => void;
   signOutDisabled?: boolean;
+  // Phase group props
+  phaseGroups?: PhaseGroup[];
+  onReorderPhaseGroups?: (orderedIds: string[]) => void;
+  onRenamePhaseGroup?: (groupId: string, name: string) => void | Promise<void>;
+  onDeletePhaseGroup?: (groupId: string) => void;
+  onReorderSectionsInGroup?: (groupId: string, orderedIds: string[]) => void;
+  onCreatePhaseInGroup?: (groupId: string, name: string) => void | Promise<void>;
+  onCreateSection?: (name: string) => void | Promise<boolean> | boolean;
+  onCreatePhasedSection?: (
+    groupName: string,
+    phaseName: string
+  ) => void | Promise<boolean> | boolean;
 }
 
 function SortableSectionNavItem({
@@ -261,16 +286,66 @@ export function Sidebar({
   faqCounts = {},
   loading = false,
   userEmail,
+  userName,
+  orgName,
+  orgSettingsHref,
   onSignOut,
   signOutDisabled = false,
+  phaseGroups = [],
+  onReorderPhaseGroups,
+  onRenamePhaseGroup,
+  onDeletePhaseGroup,
+  onReorderSectionsInGroup,
+  onCreatePhaseInGroup,
+  onCreateSection,
+  onCreatePhasedSection,
 }: SidebarProps) {
   const [faqsExpanded, setFaqsExpanded] = useState(true);
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [insertState, setInsertState] = useState<{
+    id: string;
+    mode: "section" | "phased";
+  } | null>(null);
+  const [insertSectionName, setInsertSectionName] = useState("");
+  const [insertPhaseGroupName, setInsertPhaseGroupName] = useState("");
+  const [insertPhaseName, setInsertPhaseName] = useState("");
+
+  // Compute grouped and standalone sections
+  const { groupedSections, standaloneSections } = useMemo(() => {
+    const grouped = new Map<string, Section[]>();
+    const standalone: Section[] = [];
+
+    for (const section of sections) {
+      if (section.phaseGroupId) {
+        const existing = grouped.get(section.phaseGroupId) || [];
+        existing.push(section);
+        grouped.set(section.phaseGroupId, existing);
+      } else {
+        standalone.push(section);
+      }
+    }
+
+    // Sort sections within each group by phaseOrder
+    for (const [, groupSections] of grouped) {
+      groupSections.sort((a, b) => (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0));
+    }
+
+    return { groupedSections: grouped, standaloneSections: standalone };
+  }, [sections]);
 
   const isFaqActive = activeSection?.startsWith("section-faq-");
+  const canReorderGroups =
+    Boolean(onReorderPhaseGroups) &&
+    reorderEnabled &&
+    !loading &&
+    !insertState;
   const canReorderSections =
-    Boolean(onReorderSections) && reorderEnabled && !loading && !editingSectionId;
+    Boolean(onReorderSections) &&
+    reorderEnabled &&
+    !loading &&
+    !editingSectionId &&
+    !insertState;
   const canRenameSections = Boolean(onRenameSection) && !loading;
 
   const sensors = useSensors(
@@ -287,13 +362,210 @@ export function Sidebar({
     });
   }, [editingSectionId, sections]);
 
+  const startInsert = (id: string, mode: "section" | "phased") => {
+    setInsertState({ id, mode });
+    setInsertSectionName("");
+    setInsertPhaseGroupName("");
+    setInsertPhaseName("");
+  };
+
+  const cancelInsert = () => {
+    setInsertState(null);
+    setInsertSectionName("");
+    setInsertPhaseGroupName("");
+    setInsertPhaseName("");
+  };
+
+  const commitInsertSection = async () => {
+    if (!onCreateSection) return;
+    const name = insertSectionName.trim();
+    if (!name) return;
+    const ok = await onCreateSection(name);
+    if (ok === false) return;
+    cancelInsert();
+  };
+
+  const commitInsertPhased = async () => {
+    if (!onCreatePhasedSection) return;
+    const groupName = insertPhaseGroupName.trim();
+    const phaseName = insertPhaseName.trim();
+    if (!groupName || !phaseName) return;
+    const ok = await onCreatePhasedSection(groupName, phaseName);
+    if (ok === false) return;
+    cancelInsert();
+  };
+
+  const renderInsertRow = (rowId: string) => {
+    if (!onCreateSection && !onCreatePhasedSection) return null;
+    const isSectionActive =
+      insertState?.id === rowId && insertState?.mode === "section";
+    const isPhasedActive =
+      insertState?.id === rowId && insertState?.mode === "phased";
+    const canAddSection = Boolean(onCreateSection) && !loading;
+    const canAddPhased = Boolean(onCreatePhasedSection) && !loading;
+
+    return (
+      <div key={rowId} className="relative py-0.5">
+        <div className="group flex items-center gap-2 px-2">
+          <div className="flex-1 h-px bg-border/60" />
+          <div
+            className={cn(
+              "inline-flex items-center gap-1",
+              isSectionActive || isPhasedActive
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100 transition-opacity"
+            )}
+          >
+            {onCreateSection && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-2 text-[11px]"
+                onClick={() => startInsert(rowId, "section")}
+                disabled={!canAddSection}
+              >
+                + Section
+              </Button>
+            )}
+            {onCreatePhasedSection && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-2 text-[11px]"
+                onClick={() => startInsert(rowId, "phased")}
+                disabled={!canAddPhased}
+              >
+                + Phased
+              </Button>
+            )}
+          </div>
+          <div className="flex-1 h-px bg-border/60" />
+        </div>
+
+        {isSectionActive && (
+          <div className="mt-2 px-3">
+            <div className="flex items-center gap-2">
+              <Input
+                value={insertSectionName}
+                onChange={(e) => setInsertSectionName(e.target.value)}
+                placeholder="Section name..."
+                className="h-7 text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void commitInsertSection();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelInsert();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => void commitInsertSection()}
+                disabled={!insertSectionName.trim()}
+              >
+                Add
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={cancelInsert}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isPhasedActive && (
+          <div className="mt-2 px-3 space-y-2">
+            <Input
+              value={insertPhaseGroupName}
+              onChange={(e) => setInsertPhaseGroupName(e.target.value)}
+              placeholder="Phase group name..."
+              className="h-7 text-sm"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelInsert();
+                }
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Input
+                value={insertPhaseName}
+                onChange={(e) => setInsertPhaseName(e.target.value)}
+                placeholder="Phase name..."
+                className="h-7 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void commitInsertPhased();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelInsert();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => void commitInsertPhased()}
+                disabled={
+                  !insertPhaseGroupName.trim() || !insertPhaseName.trim()
+                }
+              >
+                Add
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={cancelInsert}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const handleGroupDragEnd = (event: DragEndEvent) => {
+    if (!canReorderGroups) return;
+    const { active, over } = event;
+    if (!over) return;
+    if (active.id === over.id) return;
+
+    const ids = phaseGroups.map((g) => g.id);
+    const oldIndex = ids.indexOf(String(active.id));
+    const newIndex = ids.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const nextIds = arrayMove(ids, oldIndex, newIndex);
+    onReorderPhaseGroups?.(nextIds);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     if (!canReorderSections) return;
     const { active, over } = event;
     if (!over) return;
     if (active.id === over.id) return;
 
-    const ids = sections.map((s) => s.id);
+    // Only reorder standalone sections
+    const ids = standaloneSections.map((s) => s.id);
     const oldIndex = ids.indexOf(String(active.id));
     const newIndex = ids.indexOf(String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
@@ -431,6 +703,44 @@ export function Sidebar({
 
                 <CollapsibleContent>
                   <div className="mt-1 space-y-1">
+                    {/* Phase Groups */}
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      modifiers={[restrictToVerticalAxis]}
+                      onDragEnd={handleGroupDragEnd}
+                    >
+                      <SortableContext
+                        items={phaseGroups.map((g) => g.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {phaseGroups.map((group, index) => {
+                          const groupSections = groupedSections.get(group.id) || [];
+                          return (
+                            <div key={group.id}>
+                              {index > 0 && renderInsertRow(`groups-between-${group.id}`)}
+                              <PhaseGroupItem
+                                group={group}
+                                sections={groupSections}
+                                activeSection={activeSection}
+                                onNavigate={onNavigate}
+                                onRenameGroup={onRenamePhaseGroup}
+                                onDeleteGroup={onDeletePhaseGroup}
+                                onReorderSectionsInGroup={onReorderSectionsInGroup}
+                                onCreatePhaseInGroup={onCreatePhaseInGroup}
+                                groupReorderEnabled={canReorderGroups}
+                                reorderEnabled={reorderEnabled}
+                                faqCounts={faqCounts}
+                                loading={loading}
+                              />
+                            </div>
+                          );
+                        })}
+                        {phaseGroups.length > 0 && renderInsertRow("groups-end")}
+                      </SortableContext>
+                    </DndContext>
+
+                    {/* Standalone Sections */}
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -438,29 +748,35 @@ export function Sidebar({
                       onDragEnd={handleDragEnd}
                     >
                       <SortableContext
-                        items={sections.map((s) => s.id)}
+                        items={standaloneSections.map((s) => s.id)}
                         strategy={verticalListSortingStrategy}
                       >
-                        {sections.map((section) => (
-                          <div key={section.id} className="group">
-                            <SortableSectionNavItem
-                              section={section}
-                              isActive={activeSection === `section-faq-${section.id}`}
-                              onNavigate={onNavigate}
-                              count={faqCounts[section.id]}
-                              reorderEnabled={canReorderSections}
-                              renameEnabled={canRenameSections}
-                              isEditing={editingSectionId === section.id}
-                              editValue={editingSectionId === section.id ? editName : ""}
-                              onStartRename={startRename}
-                              onEditChange={setEditName}
-                              onCommitRename={() => void commitRename()}
-                              onCancelRename={cancelRename}
-                            />
+                        {standaloneSections.map((section, index) => (
+                          <div key={section.id}>
+                            {index > 0 &&
+                              renderInsertRow(`sections-between-${section.id}`)}
+                            <div className="group">
+                              <SortableSectionNavItem
+                                section={section}
+                                isActive={activeSection === `section-faq-${section.id}`}
+                                onNavigate={onNavigate}
+                                count={faqCounts[section.id]}
+                                reorderEnabled={canReorderSections}
+                                renameEnabled={canRenameSections}
+                                isEditing={editingSectionId === section.id}
+                                editValue={editingSectionId === section.id ? editName : ""}
+                                onStartRename={startRename}
+                                onEditChange={setEditName}
+                                onCommitRename={() => void commitRename()}
+                                onCancelRename={cancelRename}
+                              />
+                            </div>
                           </div>
                         ))}
                       </SortableContext>
                     </DndContext>
+                    {(standaloneSections.length > 0 || phaseGroups.length === 0) &&
+                      renderInsertRow("sections-end")}
                     {sections.length === 0 && (
                       <p className="pl-9 py-2 text-xs text-sidebar-foreground/60 italic">
                         No sections yet
@@ -477,12 +793,26 @@ export function Sidebar({
         <div className="p-3 border-t border-sidebar-border shrink-0">
           <div className="flex items-center justify-between gap-2">
             <ThemeToggle className="h-8 w-8" />
-            {userEmail && (
-              <span className="text-xs text-sidebar-foreground/70 truncate max-w-[9rem]">
-                {userEmail}
-              </span>
-            )}
           </div>
+          {(orgName || userName || userEmail) && orgSettingsHref && (
+            <Link
+              href={orgSettingsHref}
+              className={cn(
+                "mt-3 block rounded-lg border border-sidebar-border/60 px-3 py-2",
+                "bg-sidebar-accent/30 transition-colors hover:bg-sidebar-accent"
+              )}
+            >
+              <span className="text-[10px] uppercase tracking-wide text-sidebar-foreground/60">
+                Organization
+              </span>
+              <span className="mt-0.5 block text-sm font-semibold text-sidebar-foreground truncate">
+                {orgName ?? "Organization"}
+              </span>
+              <span className="mt-0.5 block text-xs text-sidebar-foreground/60 truncate">
+                {userName ?? userEmail}
+              </span>
+            </Link>
+          )}
           {onSignOut && (
             <Button
               variant="outline"

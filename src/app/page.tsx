@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FAQSection } from "@/components/faq-section";
 import { VariablesSection } from "@/components/variables-section";
 import { CustomRulesSection } from "@/components/custom-rules-section";
@@ -20,6 +20,7 @@ import {
   ChevronUp,
   ChevronDown,
   X,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadingSkeleton } from "@/components/loading-skeleton";
@@ -31,6 +32,7 @@ import {
   deleteVariable,
   getSections,
   createSection,
+  createSectionInGroup,
   updateSection,
   deleteSection,
   reorderSections,
@@ -38,7 +40,16 @@ import {
   applyFaqBatch,
   getCustomRules,
   saveCustomRules,
+  getPhaseGroups,
+  createPhaseGroup,
+  updatePhaseGroup,
+  deletePhaseGroup,
+  reorderPhaseGroups,
+  addSectionToGroup,
+  removeSectionFromGroup,
+  reorderSectionsInGroup,
 } from "@/db/actions";
+import { PhaseTabs } from "@/components/phase-tabs";
 
 interface Variable {
   id: string;
@@ -47,6 +58,15 @@ interface Variable {
 }
 
 interface Section {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: Date;
+  phaseGroupId?: string | null;
+  phaseOrder?: number | null;
+}
+
+interface PhaseGroup {
   id: string;
   name: string;
   order: number;
@@ -73,7 +93,24 @@ function toMs(value: unknown): number {
 
 export default function Home() {
   const router = useRouter();
+  const pathname = usePathname();
   const session = authClient.useSession();
+  const orgSlug = useMemo(() => {
+    const match = pathname.match(/^\/org\/([^/]+)/);
+    return match?.[1] ?? "default";
+  }, [pathname]);
+  const orgName = useMemo(() => {
+    if (orgSlug && orgSlug !== "default") {
+      return orgSlug
+        .split("-")
+        .map((part) =>
+          part ? `${part.charAt(0).toUpperCase()}${part.slice(1)}` : part
+        )
+        .join(" ");
+    }
+    const baseName = session.data?.user?.name ?? "Default";
+    return `${baseName} Org`;
+  }, [orgSlug, session.data?.user?.name]);
 
   const [sections, setSections] = useState<Section[]>([]);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
@@ -92,6 +129,10 @@ export default function Home() {
   const [customRulesDraft, setCustomRulesDraft] = useState<string | null>(null);
   const [customRulesResetSignal, setCustomRulesResetSignal] = useState(0);
   const [isSavingCustomRules, setIsSavingCustomRules] = useState(false);
+  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
+  const [activePhaseTab, setActivePhaseTab] = useState<Record<string, string>>({});
+  const [showNewPhaseGroup, setShowNewPhaseGroup] = useState(false);
+  const [newPhaseGroupName, setNewPhaseGroupName] = useState("");
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
   const { activeSection, scrollToSection } = useActiveSection(sections);
@@ -108,16 +149,18 @@ export default function Home() {
   const refreshData = async (initialLoad = false) => {
     if (initialLoad) setIsLoading(true);
     try {
-      const [vars, sects, faqList, rules] = await Promise.all([
+      const [vars, sects, faqList, rules, groups] = await Promise.all([
         getVariables(),
         getSections(),
         getFaqs(),
         getCustomRules(),
+        getPhaseGroups(),
       ]);
       setVariables(vars);
       setSections(sects);
       setFaqs(faqList);
       setCustomRulesContent(rules?.content ?? "");
+      setPhaseGroups(groups);
     } finally {
       if (initialLoad) setIsLoading(false);
     }
@@ -212,35 +255,87 @@ export default function Home() {
 
   // Variable handlers
   const handleCreateVariable = async (key: string, value: string) => {
-    await createVariable(key, value);
-    refreshData();
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return;
+    try {
+      const created = await createVariable(trimmedKey, value.trim());
+      setVariables((prev) => [...prev, created]);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create variable. Please try again.");
+      refreshData();
+    }
   };
 
   const handleUpdateVariable = async (id: string, key: string, value: string) => {
-    await updateVariable(id, key, value);
-    refreshData();
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return;
+    const prevVariables = variables;
+    setVariables((prev) =>
+      prev.map((v) =>
+        v.id === id ? { ...v, key: trimmedKey, value: value.trim() } : v
+      )
+    );
+    try {
+      await updateVariable(id, trimmedKey, value.trim());
+    } catch (err) {
+      console.error(err);
+      setVariables(prevVariables);
+      alert("Failed to update variable. Please try again.");
+      refreshData();
+    }
   };
 
   const handleDeleteVariable = async (id: string) => {
-    await deleteVariable(id);
-    refreshData();
+    const prevVariables = variables;
+    setVariables((prev) => prev.filter((v) => v.id !== id));
+    try {
+      await deleteVariable(id);
+    } catch (err) {
+      console.error(err);
+      setVariables(prevVariables);
+      alert("Failed to delete variable. Please try again.");
+      refreshData();
+    }
   };
 
   // Section handlers
+  const createSectionByName = async (name: string) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return false;
+    try {
+      const created = await createSection(trimmedName);
+      setSections((prev) =>
+        [...prev, created].sort((a, b) => a.order - b.order)
+      );
+      return true;
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create section. Please try again.");
+      refreshData();
+      return false;
+    }
+  };
+
   const handleCreateSection = async () => {
-    if (!newSectionName.trim()) return;
-    await createSection(newSectionName.trim());
+    const ok = await createSectionByName(newSectionName);
+    if (!ok) return;
     setNewSectionName("");
     setShowNewSection(false);
-    refreshData();
   };
 
   const handleUpdateSection = async (id: string, name: string) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const prevSections = sections;
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, name: trimmedName } : s))
+    );
     try {
-      await updateSection(id, name);
-      refreshData();
+      await updateSection(id, trimmedName);
     } catch (err) {
       console.error(err);
+      setSections(prevSections);
       alert("Failed to rename section. Please try again.");
       refreshData();
     }
@@ -271,11 +366,330 @@ export default function Home() {
         ? `Delete "${sections.find((s) => s.id === id)?.name}" and its ${sectionFaqs.length} FAQ(s)?`
         : `Delete "${sections.find((s) => s.id === id)?.name}"?`;
 
-    if (confirm(message)) {
+    if (!confirm(message)) return;
+
+    const prevSections = sections;
+    const prevFaqs = faqs;
+    const prevDrafts = faqDraftById;
+    const prevDeleted = deletedFaqIds;
+    const prevActiveTabs = activePhaseTab;
+    const removedSection = sections.find((s) => s.id === id);
+    const removedGroupId = removedSection?.phaseGroupId ?? null;
+
+    const nextSections = sections.filter((s) => s.id !== id);
+    setSections(nextSections);
+
+    const nextFaqs = faqs.filter((f) => f.sectionId !== id);
+    setFaqs(nextFaqs);
+
+    const nextDrafts = Object.fromEntries(
+      Object.entries(faqDraftById).filter(([, draft]) => draft.sectionId !== id)
+    );
+    setFaqDraftById(nextDrafts);
+
+    const nextDeleted = new Set(deletedFaqIds);
+    for (const faq of faqs) {
+      if (faq.sectionId === id) nextDeleted.delete(faq.id);
+    }
+    for (const draft of Object.values(faqDraftById)) {
+      if (draft.sectionId === id) nextDeleted.delete(draft.id);
+    }
+    setDeletedFaqIds(nextDeleted);
+
+    if (removedGroupId) {
+      const remainingGroupSections = nextSections
+        .filter((s) => s.phaseGroupId === removedGroupId)
+        .sort((a, b) => (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0));
+      setActivePhaseTab((prev) => {
+        const next = { ...prev };
+        const current = next[removedGroupId];
+        if (current && remainingGroupSections.some((s) => s.id === current)) {
+          return next;
+        }
+        if (remainingGroupSections.length === 0) {
+          delete next[removedGroupId];
+        } else {
+          next[removedGroupId] = remainingGroupSections[0].id;
+        }
+        return next;
+      });
+    }
+
+    try {
       await deleteSection(id);
+    } catch (err) {
+      console.error(err);
+      setSections(prevSections);
+      setFaqs(prevFaqs);
+      setFaqDraftById(prevDrafts);
+      setDeletedFaqIds(prevDeleted);
+      setActivePhaseTab(prevActiveTabs);
+      alert("Failed to delete section. Please try again.");
       refreshData();
     }
   };
+
+  // Phase group handlers
+  const handleReorderPhaseGroups = async (orderedIds: string[]) => {
+    setPhaseGroups((prev) => {
+      const byId = new Map(prev.map((g) => [g.id, g]));
+      const filteredOrdered = orderedIds.filter((id) => byId.has(id));
+      const missing = prev.map((g) => g.id).filter((id) => !filteredOrdered.includes(id));
+      const finalIds = [...filteredOrdered, ...missing];
+      return finalIds.map((id, index) => ({ ...byId.get(id)!, order: index }));
+    });
+
+    try {
+      await reorderPhaseGroups({ orderedIds });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder phase groups. Please try again.");
+      refreshData();
+    }
+  };
+
+  const handleRenamePhaseGroup = async (groupId: string, name: string) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const prevGroups = phaseGroups;
+    setPhaseGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, name: trimmedName } : g))
+    );
+    try {
+      await updatePhaseGroup(groupId, trimmedName);
+    } catch (err) {
+      console.error(err);
+      setPhaseGroups(prevGroups);
+      alert("Failed to rename group. Please try again.");
+      refreshData();
+    }
+  };
+
+  const handleDeletePhaseGroup = async (groupId: string) => {
+    const groupSections = sections.filter((s) => s.phaseGroupId === groupId);
+    const message =
+      groupSections.length > 0
+        ? `Delete this phase group? The ${groupSections.length} section(s) inside will become standalone.`
+        : `Delete this empty phase group?`;
+
+    if (!confirm(message)) return;
+
+    const prevGroups = phaseGroups;
+    const prevSections = sections;
+    const prevActiveTabs = activePhaseTab;
+
+    setPhaseGroups((prev) => prev.filter((g) => g.id !== groupId));
+    setSections((prev) =>
+      prev.map((s) =>
+        s.phaseGroupId === groupId ? { ...s, phaseGroupId: null, phaseOrder: 0 } : s
+      )
+    );
+    setActivePhaseTab((prev) => {
+      const next = { ...prev };
+      delete next[groupId];
+      return next;
+    });
+
+    try {
+      await deletePhaseGroup(groupId);
+    } catch (err) {
+      console.error(err);
+      setPhaseGroups(prevGroups);
+      setSections(prevSections);
+      setActivePhaseTab(prevActiveTabs);
+      alert("Failed to delete group. Please try again.");
+      refreshData();
+    }
+  };
+
+  const handleReorderSectionsInGroup = async (
+    groupId: string,
+    orderedIds: string[]
+  ) => {
+    // Optimistic update
+    setSections((prev) =>
+      prev.map((s) => {
+        if (s.phaseGroupId !== groupId) return s;
+        const idx = orderedIds.indexOf(s.id);
+        return idx !== -1 ? { ...s, phaseOrder: idx } : s;
+      })
+    );
+
+    try {
+      await reorderSectionsInGroup({ groupId, orderedSectionIds: orderedIds });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reorder phases. Please try again.");
+      refreshData();
+    }
+  };
+
+  const createPhaseGroupByName = async (name: string) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return false;
+    try {
+      const created = await createPhaseGroup(trimmedName);
+      setPhaseGroups((prev) =>
+        [...prev, created].sort((a, b) => a.order - b.order)
+      );
+      return true;
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create phase group. Please try again.");
+      refreshData();
+      return false;
+    }
+  };
+
+  const handleCreatePhaseGroup = async () => {
+    const ok = await createPhaseGroupByName(newPhaseGroupName);
+    if (!ok) return;
+    setNewPhaseGroupName("");
+    setShowNewPhaseGroup(false);
+  };
+
+  const handleCreatePhasedSection = async (groupName: string, phaseName: string) => {
+    const trimmedGroup = groupName.trim();
+    const trimmedPhase = phaseName.trim();
+    if (!trimmedGroup || !trimmedPhase) return false;
+    try {
+      const group = await createPhaseGroup(trimmedGroup);
+      try {
+        const section = await createSectionInGroup(group.id, trimmedPhase);
+        setPhaseGroups((prev) =>
+          [...prev, group].sort((a, b) => a.order - b.order)
+        );
+        setSections((prev) =>
+          [...prev, section].sort((a, b) => a.order - b.order)
+        );
+        setActivePhaseTab((prev) => ({ ...prev, [group.id]: section.id }));
+        return true;
+      } catch (err) {
+        await deletePhaseGroup(group.id).catch(() => undefined);
+        throw err;
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add phased section. Please try again.");
+      refreshData();
+      return false;
+    }
+  };
+
+  const handleCreatePhaseInGroup = async (groupId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      const created = await createSectionInGroup(groupId, trimmed);
+      setSections((prev) =>
+        [...prev, created].sort((a, b) => a.order - b.order)
+      );
+      setActivePhaseTab((prev) => ({ ...prev, [groupId]: created.id }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add phase. Please try again.");
+      refreshData();
+    }
+  };
+
+  const handleAddSectionToGroup = async (sectionId: string, groupId: string) => {
+    const prevSections = sections;
+    const prevActiveTabs = activePhaseTab;
+    const groupOrders = sections
+      .filter((s) => s.phaseGroupId === groupId)
+      .map((s) => s.phaseOrder ?? 0);
+    const nextPhaseOrder = Math.max(-1, ...groupOrders) + 1;
+
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === sectionId
+          ? { ...s, phaseGroupId: groupId, phaseOrder: nextPhaseOrder }
+          : s
+      )
+    );
+    setActivePhaseTab((prev) => ({ ...prev, [groupId]: sectionId }));
+
+    try {
+      const updated = await addSectionToGroup(sectionId, groupId);
+      setSections((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+      );
+    } catch (err) {
+      console.error(err);
+      setSections(prevSections);
+      setActivePhaseTab(prevActiveTabs);
+      alert("Failed to add section to group. Please try again.");
+      refreshData();
+    }
+  };
+
+  const handleRemoveSectionFromGroup = async (sectionId: string) => {
+    const prevSections = sections;
+    const prevActiveTabs = activePhaseTab;
+    const currentSection = sections.find((s) => s.id === sectionId);
+    const groupId = currentSection?.phaseGroupId ?? null;
+
+    setSections((prev) =>
+      prev.map((s) =>
+        s.id === sectionId ? { ...s, phaseGroupId: null, phaseOrder: 0 } : s
+      )
+    );
+
+    if (groupId) {
+      const remainingGroupSections = sections
+        .filter((s) => s.phaseGroupId === groupId && s.id !== sectionId)
+        .sort((a, b) => (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0));
+      setActivePhaseTab((prev) => {
+        const next = { ...prev };
+        const current = next[groupId];
+        if (current && remainingGroupSections.some((s) => s.id === current)) {
+          return next;
+        }
+        if (remainingGroupSections.length === 0) {
+          delete next[groupId];
+        } else {
+          next[groupId] = remainingGroupSections[0].id;
+        }
+        return next;
+      });
+    }
+
+    try {
+      const updated = await removeSectionFromGroup(sectionId);
+      setSections((prev) =>
+        prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+      );
+    } catch (err) {
+      console.error(err);
+      setSections(prevSections);
+      setActivePhaseTab(prevActiveTabs);
+      alert("Failed to remove section from group. Please try again.");
+      refreshData();
+    }
+  };
+
+  // Compute grouped and standalone sections for rendering
+  const { groupedSections, standaloneSections } = useMemo(() => {
+    const grouped = new Map<string, Section[]>();
+    const standalone: Section[] = [];
+
+    for (const section of sections) {
+      if (section.phaseGroupId) {
+        const existing = grouped.get(section.phaseGroupId) || [];
+        existing.push(section);
+        grouped.set(section.phaseGroupId, existing);
+      } else {
+        standalone.push(section);
+      }
+    }
+
+    // Sort sections within each group by phaseOrder
+    for (const [, groupSections] of grouped) {
+      groupSections.sort((a, b) => (a.phaseOrder ?? 0) - (b.phaseOrder ?? 0));
+    }
+
+    return { groupedSections: grouped, standaloneSections: standalone };
+  }, [sections]);
 
   // FAQ handlers
   const handleCreateFaq = async (
@@ -494,23 +908,51 @@ export default function Home() {
   const handleSaveFaqChanges = async () => {
     if (isSavingFaqBatch || !canSaveFaqChanges) return;
     setIsSavingFaqBatch(true);
+    const prevFaqs = faqs;
+    const prevDrafts = faqDraftById;
+    const prevDeleted = deletedFaqIds;
+    const prevResetSignal = faqDraftResetSignal;
+    const now = new Date();
+    const deletedSet = new Set(pendingFaqBatch.deletes);
+    const upsertMap = new Map<string, FAQ>();
+    const trimmedUpserts = pendingFaqBatch.upserts.map((f) => ({
+      ...f,
+      question: f.question.trim(),
+      answer: f.answer.trim(),
+      notes: f.notes.trim(),
+    }));
+
+    for (const upsert of trimmedUpserts) {
+      const base = baseFaqById.get(upsert.id) ?? faqDraftById[upsert.id];
+      upsertMap.set(upsert.id, {
+        ...(base ?? {}),
+        ...upsert,
+        createdAt: base?.createdAt ?? now,
+        updatedAt: now,
+      });
+    }
+
+    const optimisticFaqs = prevFaqs
+      .filter((f) => !deletedSet.has(f.id) && !upsertMap.has(f.id))
+      .concat(Array.from(upsertMap.values()));
+
+    setFaqs(optimisticFaqs);
+    setFaqDraftById({});
+    setDeletedFaqIds(new Set());
+    setFaqDraftResetSignal(prevResetSignal + 1);
     try {
       await applyFaqBatch({
-        upserts: pendingFaqBatch.upserts.map((f) => ({
-          ...f,
-          question: f.question.trim(),
-          answer: f.answer.trim(),
-          notes: f.notes.trim(),
-        })),
+        upserts: trimmedUpserts,
         deletes: pendingFaqBatch.deletes,
       });
-      setFaqDraftById({});
-      setDeletedFaqIds(new Set());
-      setFaqDraftResetSignal((n) => n + 1);
-      await refreshData();
     } catch (err) {
       console.error(err);
+      setFaqs(prevFaqs);
+      setFaqDraftById(prevDrafts);
+      setDeletedFaqIds(prevDeleted);
+      setFaqDraftResetSignal(prevResetSignal);
       alert("Failed to save FAQ changes. Please try again.");
+      refreshData();
     } finally {
       setIsSavingFaqBatch(false);
     }
@@ -538,14 +980,23 @@ export default function Home() {
   const handleSaveCustomRules = async () => {
     if (isSavingCustomRules || !hasPendingCustomRulesChanges) return;
     setIsSavingCustomRules(true);
+    const prevContent = customRulesContent;
+    const prevDraft = customRulesDraft;
+    const prevResetSignal = customRulesResetSignal;
+    const nextContent = customRulesDraft ?? "";
+
+    setCustomRulesContent(nextContent);
+    setCustomRulesDraft(null);
+    setCustomRulesResetSignal(prevResetSignal + 1);
     try {
-      await saveCustomRules(customRulesDraft!);
-      setCustomRulesDraft(null);
-      setCustomRulesResetSignal((n) => n + 1);
-      await refreshData();
+      await saveCustomRules(nextContent);
     } catch (err) {
       console.error(err);
+      setCustomRulesContent(prevContent);
+      setCustomRulesDraft(prevDraft);
+      setCustomRulesResetSignal(prevResetSignal);
       alert("Failed to save custom rules. Please try again.");
+      refreshData();
     } finally {
       setIsSavingCustomRules(false);
     }
@@ -576,8 +1027,19 @@ export default function Home() {
         faqCounts={faqCounts}
         loading={isLoading}
         userEmail={session.data?.user?.email}
+        userName={session.data?.user?.name}
+        orgName={orgName}
+        orgSettingsHref={`/org/${orgSlug}/settings`}
         onSignOut={handleSignOut}
         signOutDisabled={session.isPending}
+        phaseGroups={phaseGroups}
+        onReorderPhaseGroups={handleReorderPhaseGroups}
+        onRenamePhaseGroup={handleRenamePhaseGroup}
+        onDeletePhaseGroup={handleDeletePhaseGroup}
+        onReorderSectionsInGroup={handleReorderSectionsInGroup}
+        onCreatePhaseInGroup={handleCreatePhaseInGroup}
+        onCreateSection={createSectionByName}
+        onCreatePhasedSection={handleCreatePhasedSection}
       />
 
       {/* Toggle Button */}
@@ -664,6 +1126,13 @@ export default function Home() {
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
+                    onClick={() => setShowNewPhaseGroup(true)}
+                  >
+                    <Layers className="h-4 w-4 mr-2" />
+                    New Phase Group
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={() => setShowExportModal(true)}
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -709,16 +1178,123 @@ export default function Home() {
                 />
               </div>
 
-              {/* Sections */}
-              {sections.map((section, index) => (
+              {/* Create Phase Group Form */}
+              {showNewPhaseGroup && (
+                <div className="mb-8 animate-fade-up">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border bg-card/70 p-4 shadow-sm">
+                    <Layers className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <Input
+                      value={newPhaseGroupName}
+                      onChange={(e) => setNewPhaseGroupName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreatePhaseGroup();
+                        if (e.key === "Escape") {
+                          setShowNewPhaseGroup(false);
+                          setNewPhaseGroupName("");
+                        }
+                      }}
+                      placeholder="Phase group name (e.g., FMA)..."
+                      autoFocus
+                      className="w-full sm:w-64"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handleCreatePhaseGroup}
+                        disabled={!newPhaseGroupName.trim()}
+                      >
+                        Create Group
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setShowNewPhaseGroup(false);
+                          setNewPhaseGroupName("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Phase Groups with Tabs */}
+              {phaseGroups.map((group, groupIndex) => {
+                const groupSections = groupedSections.get(group.id) || [];
+                if (groupSections.length === 0) return null;
+
+                const activeSectionId =
+                  activePhaseTab[group.id] || groupSections[0]?.id;
+                const activeSection = groupSections.find(
+                  (s) => s.id === activeSectionId
+                );
+
+                return (
+                  <div
+                    key={group.id}
+                    className="animate-fade-up mb-10"
+                    style={{
+                      animationDelay: `${Math.min(groupIndex, 6) * 60 + 200}ms`,
+                    }}
+                  >
+                    <div className="mb-4">
+                      <h2 className="text-2xl font-semibold tracking-tight mb-3">
+                        {group.name}
+                      </h2>
+                      <PhaseTabs
+                        group={group}
+                        sections={groupSections}
+                        activePhaseId={activeSectionId}
+                        onPhaseChange={(sectionId) =>
+                          setActivePhaseTab((prev) => ({
+                            ...prev,
+                            [group.id]: sectionId,
+                          }))
+                        }
+                      />
+                    </div>
+                    {activeSection && (
+                      <div
+                        id={`section-faq-${activeSection.id}`}
+                        className="scroll-mt-24"
+                      >
+                        <div
+                          key={activeSection.id}
+                          className="animate-phase-switch"
+                        >
+                          <FAQSection
+                            section={activeSection}
+                            faqs={getFaqsForSection(activeSection.id)}
+                            resetSignal={faqDraftResetSignal}
+                            onUpdateSection={handleUpdateSection}
+                            onDeleteSection={handleDeleteSection}
+                            onCreateFaq={handleCreateFaq}
+                            onUpdateFaq={handleUpdateFaq}
+                            onDeleteFaq={handleDeleteFaq}
+                            onReorderFaqs={handleReorderFaqs}
+                            reorderDisabled={searchQuery.trim().length > 0}
+                            searchQuery={searchQuery}
+                            currentMatchId={currentMatchId}
+                            phaseGroups={phaseGroups}
+                            onRemoveFromGroup={handleRemoveSectionFromGroup}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Standalone Sections */}
+              {standaloneSections.map((section, index) => (
                 <div
                   key={section.id}
                   className="animate-fade-up"
                   style={{
-                    animationDelay: `${Math.min(index, 6) * 60 + 200}ms`,
+                    animationDelay: `${Math.min(index + phaseGroups.length, 6) * 60 + 200}ms`,
                   }}
                 >
-                  {index > 0 && (
+                  {(index > 0 || phaseGroups.length > 0) && (
                     <div
                       className="group flex items-center gap-2 py-1 my-6 cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
                       onClick={() => setShowNewSection(true)}
@@ -748,6 +1324,8 @@ export default function Home() {
                       reorderDisabled={searchQuery.trim().length > 0}
                       searchQuery={searchQuery}
                       currentMatchId={currentMatchId}
+                      phaseGroups={phaseGroups}
+                      onAddToGroup={handleAddSectionToGroup}
                     />
                   </div>
                 </div>

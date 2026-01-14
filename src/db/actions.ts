@@ -1,6 +1,6 @@
 "use server";
 
-import { db, variables, sections, faqs, customRules } from "./index";
+import { db, variables, sections, faqs, customRules, phaseGroups } from "./index";
 import { eq, asc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -72,6 +72,27 @@ export async function createSection(name: string) {
   const result = await db
     .insert(sections)
     .values({ name, order: allSections.length })
+    .returning();
+  revalidatePath("/");
+  return result[0];
+}
+
+export async function createSectionInGroup(groupId: string, name: string) {
+  const allSections = await getSections();
+  const sectionsInGroup = await db
+    .select({ phaseOrder: sections.phaseOrder })
+    .from(sections)
+    .where(eq(sections.phaseGroupId, groupId));
+  const maxOrder = Math.max(-1, ...sectionsInGroup.map((s) => s.phaseOrder ?? 0));
+
+  const result = await db
+    .insert(sections)
+    .values({
+      name,
+      order: allSections.length,
+      phaseGroupId: groupId,
+      phaseOrder: maxOrder + 1,
+    })
     .returning();
   revalidatePath("/");
   return result[0];
@@ -236,4 +257,114 @@ export async function saveCustomRules(content: string) {
     revalidatePath("/");
     return result[0];
   }
+}
+
+// Phase Group actions
+export async function getPhaseGroups() {
+  return db.select().from(phaseGroups).orderBy(asc(phaseGroups.order));
+}
+
+export async function createPhaseGroup(name: string) {
+  const allGroups = await getPhaseGroups();
+  const result = await db
+    .insert(phaseGroups)
+    .values({ name, order: allGroups.length })
+    .returning();
+  revalidatePath("/");
+  return result[0];
+}
+
+export async function updatePhaseGroup(id: string, name: string) {
+  const result = await db
+    .update(phaseGroups)
+    .set({ name })
+    .where(eq(phaseGroups.id, id))
+    .returning();
+  revalidatePath("/");
+  return result[0];
+}
+
+export async function deletePhaseGroup(id: string) {
+  await db.delete(phaseGroups).where(eq(phaseGroups.id, id));
+  revalidatePath("/");
+}
+
+export async function reorderPhaseGroups(params: { orderedIds: string[] }) {
+  const { orderedIds } = params;
+  if (orderedIds.length === 0) return;
+
+  const existing = await db.select({ id: phaseGroups.id }).from(phaseGroups);
+  const existingIds = new Set(existing.map((r) => r.id));
+
+  const filteredOrdered = orderedIds.filter((id) => existingIds.has(id));
+  const missing = existing
+    .map((r) => r.id)
+    .filter((id) => !filteredOrdered.includes(id));
+
+  const finalOrderedIds = [...filteredOrdered, ...missing];
+  if (finalOrderedIds.length === 0) return;
+
+  await db.execute(sql`
+    UPDATE ${phaseGroups}
+    SET "order" = CASE "id"
+      ${sql.join(
+        finalOrderedIds.map((id, index) => sql`WHEN ${id}::uuid THEN ${index}`),
+        sql` `
+      )}
+      ELSE "order"
+    END
+    WHERE ${inArray(phaseGroups.id, finalOrderedIds)}
+  `);
+
+  revalidatePath("/");
+}
+
+export async function addSectionToGroup(sectionId: string, groupId: string) {
+  // Get max phaseOrder in group
+  const sectionsInGroup = await db
+    .select()
+    .from(sections)
+    .where(eq(sections.phaseGroupId, groupId));
+  const maxOrder = Math.max(-1, ...sectionsInGroup.map((s) => s.phaseOrder ?? 0));
+
+  const result = await db
+    .update(sections)
+    .set({ phaseGroupId: groupId, phaseOrder: maxOrder + 1 })
+    .where(eq(sections.id, sectionId))
+    .returning();
+  revalidatePath("/");
+  return result[0];
+}
+
+export async function removeSectionFromGroup(sectionId: string) {
+  const result = await db
+    .update(sections)
+    .set({ phaseGroupId: null, phaseOrder: 0 })
+    .where(eq(sections.id, sectionId))
+    .returning();
+  revalidatePath("/");
+  return result[0];
+}
+
+export async function reorderSectionsInGroup(params: {
+  groupId: string;
+  orderedSectionIds: string[];
+}) {
+  const { groupId, orderedSectionIds } = params;
+  if (orderedSectionIds.length === 0) return;
+
+  await db.execute(sql`
+    UPDATE ${sections}
+    SET "phase_order" = CASE "id"
+      ${sql.join(
+        orderedSectionIds.map((id, index) => sql`WHEN ${id}::uuid THEN ${index}`),
+        sql` `
+      )}
+      ELSE "phase_order"
+    END
+    WHERE ${inArray(sections.id, orderedSectionIds)}
+    AND "phase_group_id" = ${groupId}::uuid
+  `);
+
+  revalidatePath("/");
 }

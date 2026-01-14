@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FAQTable } from "./faq-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Pencil, Check, X } from "lucide-react";
+import { Trash2, Pencil, Check, X, Layers, Unlink } from "lucide-react";
 import { HighlightText } from "./highlight-text";
 
 interface Section {
+  id: string;
+  name: string;
+  phaseGroupId?: string | null;
+}
+
+interface PhaseGroup {
   id: string;
   name: string;
 }
@@ -40,6 +46,10 @@ interface FAQSectionProps {
   reorderDisabled?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
+  // Phase group props
+  phaseGroups?: PhaseGroup[];
+  onAddToGroup?: (sectionId: string, groupId: string) => void;
+  onRemoveFromGroup?: (sectionId: string) => void;
 }
 
 export function FAQSection({
@@ -55,9 +65,29 @@ export function FAQSection({
   reorderDisabled,
   searchQuery,
   currentMatchId,
+  phaseGroups = [],
+  onAddToGroup,
+  onRemoveFromGroup,
 }: FAQSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(section.name);
+  const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const groupMenuRef = useRef<HTMLDivElement>(null);
+
+  const isInGroup = Boolean(section.phaseGroupId);
+  const availableGroups = phaseGroups.filter((g) => g.id !== section.phaseGroupId);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showGroupMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (groupMenuRef.current && !groupMenuRef.current.contains(e.target as Node)) {
+        setShowGroupMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showGroupMenu]);
 
   const handleSave = () => {
     if (editName.trim()) {
@@ -118,14 +148,60 @@ export function FAQSection({
                 variant="ghost"
                 className="h-8 w-8"
                 onClick={() => setIsEditing(true)}
+                title="Rename section"
               >
                 <Pencil className="h-4 w-4" />
               </Button>
+
+              {/* Phase group actions */}
+              {isInGroup && onRemoveFromGroup && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={() => onRemoveFromGroup(section.id)}
+                  title="Remove from phase group"
+                >
+                  <Unlink className="h-4 w-4" />
+                </Button>
+              )}
+
+              {!isInGroup && availableGroups.length > 0 && onAddToGroup && (
+                <div className="relative" ref={groupMenuRef}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setShowGroupMenu(!showGroupMenu)}
+                    title="Add to phase group"
+                  >
+                    <Layers className="h-4 w-4" />
+                  </Button>
+                  {showGroupMenu && (
+                    <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-[160px] py-1">
+                      {availableGroups.map((g) => (
+                        <button
+                          key={g.id}
+                          className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground"
+                          onClick={() => {
+                            onAddToGroup(section.id, g.id);
+                            setShowGroupMenu(false);
+                          }}
+                        >
+                          {g.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Button
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8"
                 onClick={() => onDeleteSection(section.id)}
+                title="Delete section"
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>

@@ -86,93 +86,102 @@ function FAQCell({
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const copied = copiedValue === value;
 
-  if (isEditing) {
-    return (
-      <div className={`${widthClass} p-3 border-r border-border/60`}>
-        <Textarea
-          value={editValue}
-          onChange={(e) => onEditChange(faq, e.target.value)}
-          onKeyDown={onKeyDown}
-          onBlur={onFinishEdit}
-          autoFocus
-          className="min-h-[100px] font-mono text-sm resize-none bg-background/70"
-          placeholder={`Enter ${field}...`}
-        />
-        <div className="text-xs text-muted-foreground mt-1">
-          ⌘+Enter to apply · Esc to cancel
-        </div>
-      </div>
-    );
-  }
-
   const matchIdPrefix = `match-${faq.id}-${field}`;
   const copyDisabled = !value.trim();
+  const wrapperClass = cn(
+    widthClass,
+    "p-4 border-r border-border/60 relative",
+    isEditing
+      ? "bg-muted/20"
+      : "cursor-text hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+  );
 
   return (
     <div
-      className={`${widthClass} p-4 border-r border-border/60 cursor-text hover:bg-muted/40 transition-colors relative group/cell focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/30`}
-      onClick={() => onStartEdit(faq, field)}
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onStartEdit(faq, field);
-        }
-      }}
-    >
-      <div
-        className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap pr-28"
-      >
-        {searchQuery ? (
-          <HighlightText
-            text={value || "Click to add"}
-            query={searchQuery}
-            currentMatchId={currentMatchId ?? undefined}
-            matchIdPrefix={matchIdPrefix}
-          />
-        ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {value || "*Click to add*"}
-          </ReactMarkdown>
-        )}
-      </div>
-
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute right-2 bottom-2 opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
-          <div className="pointer-events-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-background/70 backdrop-blur-sm"
-              title={copied ? "Copied" : "Copy"}
-              aria-label={copied ? "Copied" : "Copy"}
-              disabled={copyDisabled}
-              onClick={async (e) => {
+      className={cn(wrapperClass, "group/cell")}
+      onClick={isEditing ? undefined : () => onStartEdit(faq, field)}
+      tabIndex={isEditing ? -1 : 0}
+      onKeyDown={
+        isEditing
+          ? undefined
+          : (e) => {
+              if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                e.stopPropagation();
-                if (copyDisabled) return;
-                const ok = await copyToClipboard(value);
-                if (ok) {
-                  setCopiedValue(value);
-                  window.setTimeout(() => setCopiedValue(null), 1000);
-                }
-              }}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4" />
-                  Copy
-                </>
-              )}
-            </Button>
+                onStartEdit(faq, field);
+              }
+            }
+      }
+    >
+      {isEditing ? (
+        <>
+          <Textarea
+            value={editValue}
+            onChange={(e) => onEditChange(faq, e.target.value)}
+            onKeyDown={onKeyDown}
+            onBlur={onFinishEdit}
+            autoFocus
+            className="min-h-[1.5em] w-full resize-none bg-transparent p-0 pr-28 text-sm leading-relaxed shadow-none border-0 focus-visible:ring-0"
+            placeholder={`Enter ${field}...`}
+          />
+          <div className="pointer-events-none absolute right-3 bottom-3 text-xs text-muted-foreground">
+            ⌘+Enter to apply · Esc to cancel
           </div>
-        </div>
-      </div>
+        </>
+      ) : (
+        <>
+          <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap pr-28 leading-relaxed prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
+            {searchQuery ? (
+              <HighlightText
+                text={value || "Click to add"}
+                query={searchQuery}
+                currentMatchId={currentMatchId ?? undefined}
+                matchIdPrefix={matchIdPrefix}
+              />
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {value || "*Click to add*"}
+              </ReactMarkdown>
+            )}
+          </div>
+
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute right-2 bottom-2 opacity-0 group-hover/cell:opacity-100 group-focus/cell:opacity-100 group-focus-within/cell:opacity-100 transition-opacity">
+              <div className="pointer-events-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-background/70 backdrop-blur-sm"
+                  title={copied ? "Copied" : "Copy"}
+                  aria-label={copied ? "Copied" : "Copy"}
+                  disabled={copyDisabled}
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (copyDisabled) return;
+                    const ok = await copyToClipboard(value);
+                    if (ok) {
+                      setCopiedValue(value);
+                      window.setTimeout(() => setCopiedValue(null), 1000);
+                    }
+                  }}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
