@@ -106,7 +106,7 @@ function toMs(value: unknown): number {
 }
 
 interface OrgPageProps {
-  params: { orgSlug: string };
+  params: Promise<{ orgSlug: string }>;
 }
 
 export default function OrgPage({ params }: OrgPageProps) {

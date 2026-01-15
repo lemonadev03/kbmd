@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { requireOrgContext } from "@/lib/org";
 
 interface OrgSettingsPageProps {
-  params: { orgSlug: string };
+  params: Promise<{ orgSlug: string }>;
 }
 
 export default async function OrgSettingsPage({ params }: OrgSettingsPageProps) {
