@@ -388,12 +388,12 @@ export function ExportModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[85vh] grid-rows-[auto,1fr,auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Export to Markdown</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto min-h-0 pr-1">
           {hasConfigs && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
