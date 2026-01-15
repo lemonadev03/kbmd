@@ -7,11 +7,13 @@ import {
   faqs,
   customRules,
   phaseGroups,
+  exportConfigs,
   userSettings,
 } from "./index";
 import { and, eq, asc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireOrgContext } from "@/lib/org";
+import type { ExportConfigPayload } from "@/types/export-config";
 
 export async function getOrganizationBySlug(orgSlug: string) {
   const ctx = await requireOrgContext(orgSlug);
@@ -394,6 +396,54 @@ export async function saveCustomRules(orgSlug: string, content: string) {
     revalidatePath(`/org/${orgSlug}`);
     return result[0];
   }
+}
+
+// Export Config actions
+export async function getExportConfigs(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
+  return db
+    .select()
+    .from(exportConfigs)
+    .where(eq(exportConfigs.orgId, orgId))
+    .orderBy(asc(exportConfigs.name));
+}
+
+export async function createExportConfig(
+  orgSlug: string,
+  name: string,
+  config: ExportConfigPayload
+) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const result = await db
+    .insert(exportConfigs)
+    .values({ orgId, name, config })
+    .returning();
+  revalidatePath(`/org/${orgSlug}`);
+  return result[0];
+}
+
+export async function updateExportConfig(
+  orgSlug: string,
+  id: string,
+  name: string,
+  config: ExportConfigPayload
+) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const result = await db
+    .update(exportConfigs)
+    .set({ name, config, updatedAt: new Date() })
+    .where(and(eq(exportConfigs.id, id), eq(exportConfigs.orgId, orgId)))
+    .returning();
+  revalidatePath(`/org/${orgSlug}`);
+  return result[0];
+}
+
+export async function deleteExportConfig(orgSlug: string, id: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  await db
+    .delete(exportConfigs)
+    .where(and(eq(exportConfigs.id, id), eq(exportConfigs.orgId, orgId)));
+  revalidatePath(`/org/${orgSlug}`);
 }
 
 // Phase Group actions

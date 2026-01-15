@@ -9,6 +9,7 @@ interface SidebarNavItemProps {
   onClick: () => void;
   indent?: boolean;
   count?: number;
+  dataId?: string;
 }
 
 export function SidebarNavItem({
@@ -18,12 +19,14 @@ export function SidebarNavItem({
   onClick,
   indent,
   count,
+  dataId,
 }: SidebarNavItemProps) {
   return (
     <button
       onClick={onClick}
+      data-section-id={dataId}
       className={cn(
-        "relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+        "relative w-full flex items-center gap-1.5 px-3 py-0.5 rounded-lg text-sm transition-colors",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         indent && "pl-9",

@@ -31,6 +31,10 @@ import {
   updateVariable,
   deleteVariable,
   getOrganizationBySlug,
+  getExportConfigs,
+  createExportConfig,
+  updateExportConfig,
+  deleteExportConfig,
   getSections,
   createSection,
   createSectionInGroup,
@@ -51,6 +55,7 @@ import {
   reorderSectionsInGroup,
 } from "@/db/actions";
 import { PhaseTabs } from "@/components/phase-tabs";
+import type { ExportConfigPayload } from "@/types/export-config";
 
 interface Variable {
   id: string;
@@ -85,6 +90,14 @@ interface FAQ {
   updatedAt?: Date;
 }
 
+interface ExportConfig {
+  id: string;
+  name: string;
+  config: ExportConfigPayload;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 function toMs(value: unknown): number {
   if (!value) return 0;
   if (value instanceof Date) return value.getTime();
@@ -114,6 +127,7 @@ export default function OrgPage({ params }: OrgPageProps) {
   const [newSectionName, setNewSectionName] = useState("");
   const [showNewSection, setShowNewSection] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [exportConfigs, setExportConfigs] = useState<ExportConfig[]>([]);
   const [customRulesContent, setCustomRulesContent] = useState("");
   const [customRulesDraft, setCustomRulesDraft] = useState<string | null>(null);
   const [customRulesResetSignal, setCustomRulesResetSignal] = useState(0);
@@ -148,21 +162,29 @@ export default function OrgPage({ params }: OrgPageProps) {
       await authClient.signOut();
     } finally {
       router.replace("/sign-in");
-      router.refresh();
     }
   };
 
   const refreshData = async (initialLoad = false) => {
+    if (session.isPending || !session.data?.user?.id) {
+      if (!session.isPending) {
+        router.replace("/sign-in");
+      }
+      if (initialLoad) setIsLoading(false);
+      return;
+    }
     if (initialLoad) setIsLoading(true);
     try {
-      const [vars, sects, faqList, rules, groups, org] = await Promise.all([
-        getVariables(orgSlug),
-        getSections(orgSlug),
-        getFaqs(orgSlug),
-        getCustomRules(orgSlug),
-        getPhaseGroups(orgSlug),
-        getOrganizationBySlug(orgSlug),
-      ]);
+      const [vars, sects, faqList, rules, groups, org, configs] =
+        await Promise.all([
+          getVariables(orgSlug),
+          getSections(orgSlug),
+          getFaqs(orgSlug),
+          getCustomRules(orgSlug),
+          getPhaseGroups(orgSlug),
+          getOrganizationBySlug(orgSlug),
+          getExportConfigs(orgSlug),
+        ]);
       setVariables(vars);
       setSections(sects);
       setFaqs(faqList);
@@ -170,6 +192,15 @@ export default function OrgPage({ params }: OrgPageProps) {
       setPhaseGroups(groups);
       setOrgName(org.name);
       setOrgRole(org.role);
+      setExportConfigs(configs);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : "";
+      if (message === "Unauthorized") {
+        router.replace("/sign-in");
+        return;
+      }
+      router.replace("/orgs");
     } finally {
       if (initialLoad) setIsLoading(false);
     }
@@ -177,8 +208,16 @@ export default function OrgPage({ params }: OrgPageProps) {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (session.isPending) return;
+    if (!session.data?.user?.id) {
+      router.replace("/sign-in");
+      return;
+    }
     refreshData(true);
-  }, [orgSlug]);
+  }, [orgSlug, session.isPending, session.data?.user?.id]);
 
   const baseFaqById = useMemo(() => {
     return new Map(faqs.map((f) => [f.id, f]));
@@ -1025,6 +1064,58 @@ export default function OrgPage({ params }: OrgPageProps) {
     setCustomRulesResetSignal((n) => n + 1);
   };
 
+  const sortExportConfigs = (configs: ExportConfig[]) =>
+    [...configs].sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleCreateExportConfig = async (
+    name: string,
+    config: ExportConfigPayload
+  ) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return null;
+    try {
+      const created = await createExportConfig(orgSlug, trimmedName, config);
+      setExportConfigs((prev) => sortExportConfigs([...prev, created]));
+      return created;
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save export preset. Please try again.");
+      return null;
+    }
+  };
+
+  const handleUpdateExportConfig = async (
+    id: string,
+    name: string,
+    config: ExportConfigPayload
+  ) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return null;
+    try {
+      const updated = await updateExportConfig(orgSlug, id, trimmedName, config);
+      setExportConfigs((prev) =>
+        sortExportConfigs(
+          prev.map((item) => (item.id === id ? updated : item))
+        )
+      );
+      return updated;
+    } catch (error) {
+      console.error(error);
+      alert("Failed to update export preset. Please try again.");
+      return null;
+    }
+  };
+
+  const handleDeleteExportConfig = async (id: string) => {
+    try {
+      await deleteExportConfig(orgSlug, id);
+      setExportConfigs((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.error(error);
+      alert("Failed to delete export preset. Please try again.");
+    }
+  };
+
   if (!mounted) {
     return <LoadingSkeleton />;
   }
@@ -1427,8 +1518,14 @@ export default function OrgPage({ params }: OrgPageProps) {
             onOpenChange={setShowExportModal}
             variables={variables}
             sections={sections}
+            phaseGroups={phaseGroups}
             faqs={effectiveFaqs}
             customRules={customRulesContent}
+            exportConfigs={exportConfigs}
+            canManageConfigs={canEdit}
+            onCreateExportConfig={handleCreateExportConfig}
+            onUpdateExportConfig={handleUpdateExportConfig}
+            onDeleteExportConfig={handleDeleteExportConfig}
           />
         </div>
       </main>

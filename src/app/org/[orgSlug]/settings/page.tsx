@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { requireOrgContext } from "@/lib/org";
 
@@ -8,7 +9,19 @@ interface OrgSettingsPageProps {
 
 export default async function OrgSettingsPage({ params }: OrgSettingsPageProps) {
   const { orgSlug } = await params;
-  const org = await requireOrgContext(orgSlug);
+  let org: Awaited<ReturnType<typeof requireOrgContext>> | null = null;
+  try {
+    org = await requireOrgContext(orgSlug);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "Unauthorized") {
+      redirect("/sign-in");
+    }
+    redirect("/orgs");
+  }
+  if (!org) {
+    redirect("/orgs");
+  }
 
   return (
     <div className="min-h-screen app-shell">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, type CSSProperties } from "react";
+import { useEffect, useState, useMemo, useRef, type CSSProperties } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { SidebarNavItem } from "./sidebar-nav-item";
@@ -137,6 +137,7 @@ function SortableSectionNavItem({
     <div
       ref={setNodeRef}
       style={style}
+      data-section-id={`section-faq-${section.id}`}
       role="button"
       tabIndex={0}
       aria-current={isActive ? "page" : undefined}
@@ -152,10 +153,10 @@ function SortableSectionNavItem({
         }
       }}
       className={cn(
-        "relative w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
+        "relative w-full flex items-center gap-1 px-3 py-0.5 rounded-lg text-sm transition-all duration-200",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-        "pl-9",
+        "pl-9 group-hover:pr-10",
         isActive
           ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
           : "text-sidebar-foreground",
@@ -243,13 +244,13 @@ function SortableSectionNavItem({
       </span>
 
       {!isEditing && count !== undefined && (
-        <span className="text-xs text-sidebar-foreground/60 tabular-nums">
+        <span className="text-xs text-sidebar-foreground/60 tabular-nums transition-opacity group-hover:opacity-0">
           {count}
         </span>
       )}
 
       {!isEditing && (
-        <span className="ml-1 flex items-center">
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center opacity-0 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-x-0 translate-x-1">
           <button
             type="button"
             className={cn(
@@ -303,6 +304,29 @@ export function Sidebar({
   const [faqsExpanded, setFaqsExpanded] = useState(true);
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const navRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!activeSection || !isOpen) return;
+    const nav = navRef.current;
+    if (!nav) return;
+    const activeItem = nav.querySelector<HTMLElement>(
+      `[data-section-id="${activeSection}"]`
+    );
+    if (!activeItem) return;
+    const itemTop = activeItem.offsetTop;
+    const itemBottom = itemTop + activeItem.offsetHeight;
+    const viewTop = nav.scrollTop;
+    const viewBottom = viewTop + nav.clientHeight;
+    if (itemTop < viewTop + 4) {
+      nav.scrollTo({ top: Math.max(0, itemTop - 4), behavior: "auto" });
+    } else if (itemBottom > viewBottom - 4) {
+      nav.scrollTo({
+        top: Math.max(0, itemBottom - nav.clientHeight + 4),
+        behavior: "auto",
+      });
+    }
+  }, [activeSection, isOpen]);
   const [insertState, setInsertState] = useState<{
     id: string;
     mode: "section" | "phased";
@@ -401,47 +425,65 @@ export function Sidebar({
       insertState?.id === rowId && insertState?.mode === "section";
     const isPhasedActive =
       insertState?.id === rowId && insertState?.mode === "phased";
+    const isActiveRow = isSectionActive || isPhasedActive;
     const canAddSection = Boolean(onCreateSection) && !loading;
     const canAddPhased = Boolean(onCreatePhasedSection) && !loading;
 
     return (
-      <div key={rowId} className="relative py-0.5">
-        <div className="group flex items-center gap-2 px-2">
-          <div className="flex-1 h-px bg-border/60" />
-          <div
-            className={cn(
-              "inline-flex items-center gap-1",
-              isSectionActive || isPhasedActive
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 transition-opacity"
-            )}
-          >
-            {onCreateSection && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-5 px-2 text-[11px]"
-                onClick={() => startInsert(rowId, "section")}
-                disabled={!canAddSection}
-              >
-                + Section
-              </Button>
-            )}
-            {onCreatePhasedSection && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-5 px-2 text-[11px]"
-                onClick={() => startInsert(rowId, "phased")}
-                disabled={!canAddPhased}
-              >
-                + Phased
-              </Button>
-            )}
+      <div key={rowId} className="relative group">
+        <div
+          className={cn(
+            "relative overflow-hidden transition-[height] duration-200 ease-out",
+            isActiveRow ? "h-6" : "h-2 group-hover:h-6"
+          )}
+        >
+          <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div
+              className={cn(
+                "flex-1 h-px bg-border/50 transition-opacity duration-200",
+                isActiveRow ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              )}
+            />
+            <div
+              className={cn(
+                "inline-flex items-center gap-1 transition-all duration-200",
+                isActiveRow
+                  ? "opacity-100 translate-y-0 pointer-events-auto"
+                  : "opacity-0 -translate-y-1 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto"
+              )}
+            >
+              {onCreateSection && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-4 px-1.5 text-[10px]"
+                  onClick={() => startInsert(rowId, "section")}
+                  disabled={!canAddSection}
+                >
+                  + Section
+                </Button>
+              )}
+              {onCreatePhasedSection && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-4 px-1.5 text-[10px]"
+                  onClick={() => startInsert(rowId, "phased")}
+                  disabled={!canAddPhased}
+                >
+                  + Phased
+                </Button>
+              )}
+            </div>
+            <div
+              className={cn(
+                "flex-1 h-px bg-border/50 transition-opacity duration-200",
+                isActiveRow ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              )}
+            />
           </div>
-          <div className="flex-1 h-px bg-border/60" />
         </div>
 
         {isSectionActive && (
@@ -645,7 +687,10 @@ export function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto sidebar-scroll p-4 space-y-1">
+        <nav
+          ref={navRef}
+          className="flex-1 overflow-y-auto sidebar-scroll p-2 space-y-0"
+        >
           {loading ? (
             <>
               <Skeleton className="h-9 w-full rounded-md" />
@@ -659,12 +704,13 @@ export function Sidebar({
             </>
           ) : (
             <>
-              {/* Custom Rules */}
+              {/* System Prompt Logic */}
               <SidebarNavItem
-                label="Custom Rules"
+                label="System Prompt Logic"
                 icon={<FileText className="h-4 w-4" />}
                 isActive={activeSection === "section-custom-rules"}
                 onClick={() => onNavigate("section-custom-rules")}
+                dataId="section-custom-rules"
               />
 
               {/* Variables */}
@@ -673,6 +719,7 @@ export function Sidebar({
                 icon={<Variable className="h-4 w-4" />}
                 isActive={activeSection === "section-variables"}
                 onClick={() => onNavigate("section-variables")}
+                dataId="section-variables"
               />
 
               {/* FAQs Section with Collapsible */}
@@ -680,7 +727,7 @@ export function Sidebar({
                 <CollapsibleTrigger asChild>
                   <button
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                      "w-full flex items-center gap-1.5 px-3 py-0.5 rounded-lg text-sm transition-colors",
                       "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                       isFaqActive
                         ? "text-sidebar-accent-foreground font-medium"
@@ -702,7 +749,7 @@ export function Sidebar({
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
-                  <div className="mt-1 space-y-1">
+                  <div className="mt-0 space-y-0">
                     {/* Phase Groups */}
                     <DndContext
                       sensors={sensors}
@@ -778,7 +825,7 @@ export function Sidebar({
                     {(standaloneSections.length > 0 || phaseGroups.length === 0) &&
                       renderInsertRow("sections-end")}
                     {sections.length === 0 && (
-                      <p className="pl-9 py-2 text-xs text-sidebar-foreground/60 italic">
+                      <p className="pl-9 py-1 text-xs text-sidebar-foreground/60 italic">
                         No sections yet
                       </p>
                     )}

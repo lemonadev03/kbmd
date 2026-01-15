@@ -22,6 +22,13 @@
       "when": 1768427409003,
       "tag": "0002_mighty_boreas",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1768445000000,
+      "tag": "0003_export_configs",
+      "breakpoints": true
     }
   ]
 }

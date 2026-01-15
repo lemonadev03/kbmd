@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import {
   Collapsible,
@@ -85,6 +85,7 @@ function SortablePhaseItem({
     <div
       ref={setNodeRef}
       style={style}
+      data-section-id={`section-faq-${section.id}`}
       role="button"
       tabIndex={0}
       aria-current={isActive ? "page" : undefined}
@@ -96,7 +97,7 @@ function SortablePhaseItem({
         }
       }}
       className={cn(
-        "relative w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors",
+        "relative w-full flex items-center gap-1 px-3 py-0.5 rounded-md text-sm transition-colors",
         "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         "pl-10",
@@ -177,6 +178,11 @@ export function PhaseGroupItem({
   const isAnyPhaseActive = sections.some(
     (s) => activeSection === `section-faq-${s.id}`
   );
+  useEffect(() => {
+    if (isAnyPhaseActive && !isExpanded) {
+      setIsExpanded(true);
+    }
+  }, [isAnyPhaseActive, isExpanded]);
   const canCreatePhase = Boolean(onCreatePhaseInGroup) && !loading;
   const canReorderGroup = groupReorderEnabled && !loading && !isEditing && !isAddingPhase;
   const canReorder =
@@ -296,7 +302,7 @@ export function PhaseGroupItem({
         <div className="group">
           <div
             className={cn(
-              "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors",
+              "relative w-full flex items-center gap-1 px-3 py-0.5 rounded-lg text-sm transition-all duration-200",
               "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               isAnyPhaseActive
                 ? "text-sidebar-accent-foreground font-medium"
@@ -324,7 +330,7 @@ export function PhaseGroupItem({
             </span>
             <CollapsibleTrigger asChild>
               <button
-                className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                className="flex items-center gap-1.5 flex-1 min-w-0 text-left transition-[padding] duration-200 group-hover:pr-16"
                 type="button"
               >
                 <Layers className="h-4 w-4 shrink-0 text-sidebar-foreground/70" />
@@ -354,12 +360,12 @@ export function PhaseGroupItem({
                 ) : (
                   <>
                     <span className="flex-1 truncate">{group.name}</span>
-                    <span className="text-xs text-sidebar-foreground/60 tabular-nums">
+                    <span className="text-xs text-sidebar-foreground/60 tabular-nums transition-opacity group-hover:opacity-0">
                       {totalCount}
                     </span>
                     <ChevronDown
                       className={cn(
-                        "h-4 w-4 shrink-0 transition-transform",
+                        "h-4 w-4 shrink-0 transition-all duration-200 group-hover:opacity-0",
                         isExpanded && "rotate-180"
                       )}
                     />
@@ -402,7 +408,7 @@ export function PhaseGroupItem({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-x-0 translate-x-1">
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -455,9 +461,9 @@ export function PhaseGroupItem({
           </div>
 
           <CollapsibleContent>
-            <div className="mt-0.5 ml-2 space-y-0.5">
+            <div className="mt-0 ml-2 space-y-0">
               {isAddingPhase && (
-                <div className="pl-10 pr-2 py-1">
+                <div className="pl-10 pr-2 py-0.5">
                   <div className="flex items-center gap-1">
                     <Input
                       value={newPhaseName}
@@ -533,7 +539,7 @@ export function PhaseGroupItem({
                 </SortableContext>
               </DndContext>
               {sections.length === 0 && (
-                <p className="pl-4 py-1.5 text-xs text-sidebar-foreground/50 italic">
+                <p className="pl-4 py-1 text-xs text-sidebar-foreground/50 italic">
                   No phases yet
                 </p>
               )}

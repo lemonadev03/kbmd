@@ -37,7 +37,11 @@ export default async function Home() {
       .innerJoin(organizations, eq(orgMemberships.orgId, organizations.id))
       .where(eq(orgMemberships.userId, userId))
       .limit(1);
-    orgSlug = membershipRows[0]?.slug ?? "fma";
+    orgSlug = membershipRows[0]?.slug ?? null;
+  }
+
+  if (!orgSlug) {
+    redirect("/orgs");
   }
 
   redirect(`/org/${orgSlug}`);

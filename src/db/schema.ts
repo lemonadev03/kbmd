@@ -6,10 +6,12 @@ import {
   integer,
   uuid,
   boolean,
+  jsonb,
   index,
   primaryKey,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { ExportConfigPayload } from "../types/export-config";
 
 // ============================================================
 // BetterAuth Tables
@@ -223,4 +225,25 @@ export const customRules = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [uniqueIndex("custom_rules_org_id_key").on(table.orgId)]
+);
+
+export const exportConfigs = pgTable(
+  "export_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    config: jsonb("config").$type<ExportConfigPayload>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("export_configs_org_id_idx").on(table.orgId),
+    uniqueIndex("export_configs_org_id_name_key").on(table.orgId, table.name),
+  ]
 );
