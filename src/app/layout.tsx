@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
+import { Toaster } from "@/components/ui/toaster";
+import { ConfirmProvider } from "@/hooks/use-confirm";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export const metadata: Metadata = {
   title: "Knowledge Base",
@@ -33,10 +36,12 @@ export default function RootLayout({
           {themeScript}
         </Script>
       </head>
-      <body
-        className="font-sans antialiased"
-      >
-        {children}
+      <body className="font-sans antialiased">
+        <ConfirmProvider>
+          {children}
+          <ConfirmDialog />
+        </ConfirmProvider>
+        <Toaster />
       </body>
     </html>
   );

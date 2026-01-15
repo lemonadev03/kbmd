@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import {
   Collapsible,
   CollapsibleContent,
@@ -252,7 +253,7 @@ export function PhaseGroupItem({
       await onRenameGroup?.(group.id, nextName);
     } catch (err) {
       console.error(err);
-      alert("Failed to rename group. Please try again.");
+      toast.error("Failed to rename group. Please try again.");
       setEditName(group.name);
     }
   };
@@ -281,7 +282,7 @@ export function PhaseGroupItem({
       setNewPhaseName("");
     } catch (err) {
       console.error(err);
-      alert("Failed to add phase. Please try again.");
+      toast.error("Failed to add phase. Please try again.");
       setIsAddingPhase(true);
       setNewPhaseName(nextName);
     }

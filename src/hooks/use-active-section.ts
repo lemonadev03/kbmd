@@ -10,6 +10,12 @@ interface Section {
 export function useActiveSection(sections: Section[]) {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const isScrollingRef = useRef(false);
+  const activeSectionRef = useRef<string | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
 
   useEffect(() => {
     const sectionIds = [
@@ -18,7 +24,8 @@ export function useActiveSection(sections: Section[]) {
       ...sections.map((s) => `section-faq-${s.id}`),
     ];
 
-    const handleScroll = () => {
+    const computeActiveSection = () => {
+      rafRef.current = null;
       if (isScrollingRef.current) return;
 
       const anchor = 140;
@@ -40,19 +47,35 @@ export function useActiveSection(sections: Section[]) {
         }
       }
 
-      setActiveSection(bestId ?? fallbackId ?? null);
+      const next = bestId ?? fallbackId ?? null;
+      if (next !== activeSectionRef.current) {
+        activeSectionRef.current = next;
+        setActiveSection(next);
+      }
+    };
+
+    const handleScroll = () => {
+      if (rafRef.current !== null) return;
+      rafRef.current = window.requestAnimationFrame(computeActiveSection);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
 
-    return () => window.removeEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
   }, [sections]);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
       isScrollingRef.current = true;
+      activeSectionRef.current = sectionId;
       setActiveSection(sectionId);
 
       element.scrollIntoView({ behavior: "smooth", block: "start" });

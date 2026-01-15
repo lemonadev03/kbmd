@@ -8,11 +8,12 @@ import { CustomRulesSection } from "@/components/custom-rules-section";
 import { ExportModal } from "@/components/export-modal";
 import { Sidebar, SidebarToggle } from "@/components/sidebar";
 import { useSidebar } from "@/hooks/use-sidebar";
-import { useActiveSection } from "@/hooks/use-active-section";
 import { useSearchNavigation } from "@/hooks/use-search-navigation";
+import { useConfirm } from "@/hooks/use-confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
+import { toast } from "@/lib/toast";
 import {
   Search,
   Download,
@@ -112,6 +113,7 @@ interface OrgPageProps {
 export default function OrgPage({ params }: OrgPageProps) {
   const router = useRouter();
   const session = authClient.useSession();
+  const confirm = useConfirm();
   const { orgSlug } = use(params);
 
   const [sections, setSections] = useState<Section[]>([]);
@@ -155,8 +157,6 @@ export default function OrgPage({ params }: OrgPageProps) {
   const canEdit = orgRole === "admin";
 
   const { isOpen: sidebarOpen, toggle: toggleSidebar } = useSidebar();
-  const { activeSection, scrollToSection } = useActiveSection(sections);
-
   const handleSignOut = async () => {
     try {
       await authClient.signOut();
@@ -310,7 +310,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       setVariables((prev) => [...prev, created]);
     } catch (err) {
       console.error(err);
-      alert("Failed to create variable. Please try again.");
+      toast.error("Failed to create variable. Please try again.");
       refreshData();
     }
   };
@@ -329,7 +329,7 @@ export default function OrgPage({ params }: OrgPageProps) {
     } catch (err) {
       console.error(err);
       setVariables(prevVariables);
-      alert("Failed to update variable. Please try again.");
+      toast.error("Failed to update variable. Please try again.");
       refreshData();
     }
   };
@@ -342,7 +342,7 @@ export default function OrgPage({ params }: OrgPageProps) {
     } catch (err) {
       console.error(err);
       setVariables(prevVariables);
-      alert("Failed to delete variable. Please try again.");
+      toast.error("Failed to delete variable. Please try again.");
       refreshData();
     }
   };
@@ -359,7 +359,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       return true;
     } catch (err) {
       console.error(err);
-      alert("Failed to create section. Please try again.");
+      toast.error("Failed to create section. Please try again.");
       refreshData();
       return false;
     }
@@ -384,7 +384,7 @@ export default function OrgPage({ params }: OrgPageProps) {
     } catch (err) {
       console.error(err);
       setSections(prevSections);
-      alert("Failed to rename section. Please try again.");
+      toast.error("Failed to rename section. Please try again.");
       refreshData();
     }
   };
@@ -402,19 +402,24 @@ export default function OrgPage({ params }: OrgPageProps) {
       await reorderSections(orgSlug, { orderedIds });
     } catch (err) {
       console.error(err);
-      alert("Failed to reorder sections. Please try again.");
+      toast.error("Failed to reorder sections. Please try again.");
       refreshData();
     }
   };
 
   const handleDeleteSection = async (id: string) => {
     const sectionFaqs = faqs.filter((f) => f.sectionId === id);
-    const message =
-      sectionFaqs.length > 0
-        ? `Delete "${sections.find((s) => s.id === id)?.name}" and its ${sectionFaqs.length} FAQ(s)?`
-        : `Delete "${sections.find((s) => s.id === id)?.name}"?`;
-
-    if (!confirm(message)) return;
+    const sectionName = sections.find((s) => s.id === id)?.name ?? "this section";
+    const confirmed = await confirm({
+      title: `Delete "${sectionName}"?`,
+      description:
+        sectionFaqs.length > 0
+          ? `This will also delete ${sectionFaqs.length} FAQ(s) in this section. This action cannot be undone.`
+          : "This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     const prevSections = sections;
     const prevFaqs = faqs;
@@ -472,7 +477,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       setFaqDraftById(prevDrafts);
       setDeletedFaqIds(prevDeleted);
       setActivePhaseTab(prevActiveTabs);
-      alert("Failed to delete section. Please try again.");
+      toast.error("Failed to delete section. Please try again.");
       refreshData();
     }
   };
@@ -491,7 +496,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       await reorderPhaseGroups(orgSlug, { orderedIds });
     } catch (err) {
       console.error(err);
-      alert("Failed to reorder phase groups. Please try again.");
+      toast.error("Failed to reorder phase groups. Please try again.");
       refreshData();
     }
   };
@@ -508,19 +513,24 @@ export default function OrgPage({ params }: OrgPageProps) {
     } catch (err) {
       console.error(err);
       setPhaseGroups(prevGroups);
-      alert("Failed to rename group. Please try again.");
+      toast.error("Failed to rename group. Please try again.");
       refreshData();
     }
   };
 
   const handleDeletePhaseGroup = async (groupId: string) => {
     const groupSections = sections.filter((s) => s.phaseGroupId === groupId);
-    const message =
-      groupSections.length > 0
-        ? `Delete this phase group? The ${groupSections.length} section(s) inside will become standalone.`
-        : `Delete this empty phase group?`;
-
-    if (!confirm(message)) return;
+    const groupName = phaseGroups.find((g) => g.id === groupId)?.name ?? "this phase group";
+    const confirmed = await confirm({
+      title: `Delete "${groupName}"?`,
+      description:
+        groupSections.length > 0
+          ? `The ${groupSections.length} section(s) inside will become standalone.`
+          : "This empty phase group will be deleted.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     const prevGroups = phaseGroups;
     const prevSections = sections;
@@ -545,7 +555,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       setPhaseGroups(prevGroups);
       setSections(prevSections);
       setActivePhaseTab(prevActiveTabs);
-      alert("Failed to delete group. Please try again.");
+      toast.error("Failed to delete group. Please try again.");
       refreshData();
     }
   };
@@ -570,7 +580,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       });
     } catch (err) {
       console.error(err);
-      alert("Failed to reorder phases. Please try again.");
+      toast.error("Failed to reorder phases. Please try again.");
       refreshData();
     }
   };
@@ -586,7 +596,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       return true;
     } catch (err) {
       console.error(err);
-      alert("Failed to create phase group. Please try again.");
+      toast.error("Failed to create phase group. Please try again.");
       refreshData();
       return false;
     }
@@ -625,7 +635,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       }
     } catch (err) {
       console.error(err);
-      alert("Failed to add phased section. Please try again.");
+      toast.error("Failed to add phased section. Please try again.");
       refreshData();
       return false;
     }
@@ -642,7 +652,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       setActivePhaseTab((prev) => ({ ...prev, [groupId]: created.id }));
     } catch (err) {
       console.error(err);
-      alert("Failed to add phase. Please try again.");
+      toast.error("Failed to add phase. Please try again.");
       refreshData();
     }
   };
@@ -673,7 +683,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       console.error(err);
       setSections(prevSections);
       setActivePhaseTab(prevActiveTabs);
-      alert("Failed to add section to group. Please try again.");
+      toast.error("Failed to add section to group. Please try again.");
       refreshData();
     }
   };
@@ -718,7 +728,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       console.error(err);
       setSections(prevSections);
       setActivePhaseTab(prevActiveTabs);
-      alert("Failed to remove section from group. Please try again.");
+      toast.error("Failed to remove section from group. Please try again.");
       refreshData();
     }
   };
@@ -817,11 +827,15 @@ export default function OrgPage({ params }: OrgPageProps) {
 
   const handleDeleteFaq = async (id: string) => {
     const isNew = !baseFaqById.has(id);
-    const message = isNew
-      ? "Remove this unsaved FAQ?"
-      : "Delete this FAQ? (You’ll still need to click “Save changes” to apply.)";
-
-    if (!confirm(message)) return;
+    const confirmed = await confirm({
+      title: isNew ? "Remove this unsaved FAQ?" : "Delete this FAQ?",
+      description: isNew
+        ? "This unsaved FAQ will be removed."
+        : "You'll still need to click \"Save changes\" to apply the deletion.",
+      confirmLabel: isNew ? "Remove" : "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     if (isNew) {
       setFaqDraftById((prev) => {
@@ -1006,16 +1020,22 @@ export default function OrgPage({ params }: OrgPageProps) {
       setFaqDraftById(prevDrafts);
       setDeletedFaqIds(prevDeleted);
       setFaqDraftResetSignal(prevResetSignal);
-      alert("Failed to save FAQ changes. Please try again.");
+      toast.error("Failed to save FAQ changes. Please try again.");
       refreshData();
     } finally {
       setIsSavingFaqBatch(false);
     }
   };
 
-  const handleDiscardFaqChanges = () => {
+  const handleDiscardFaqChanges = async () => {
     if (!hasPendingFaqChanges) return;
-    if (!confirm("Discard all unsaved FAQ changes?")) return;
+    const confirmed = await confirm({
+      title: "Discard all unsaved FAQ changes?",
+      description: "All your pending changes will be lost.",
+      confirmLabel: "Discard",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     setFaqDraftById({});
     setDeletedFaqIds(new Set());
     setFaqDraftResetSignal((n) => n + 1);
@@ -1050,16 +1070,22 @@ export default function OrgPage({ params }: OrgPageProps) {
       setCustomRulesContent(prevContent);
       setCustomRulesDraft(prevDraft);
       setCustomRulesResetSignal(prevResetSignal);
-      alert("Failed to save custom rules. Please try again.");
+      toast.error("Failed to save custom rules. Please try again.");
       refreshData();
     } finally {
       setIsSavingCustomRules(false);
     }
   };
 
-  const handleDiscardCustomRules = () => {
+  const handleDiscardCustomRules = async () => {
     if (!hasPendingCustomRulesChanges) return;
-    if (!confirm("Discard custom rules changes?")) return;
+    const confirmed = await confirm({
+      title: "Discard custom rules changes?",
+      description: "Your pending changes will be lost.",
+      confirmLabel: "Discard",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     setCustomRulesDraft(null);
     setCustomRulesResetSignal((n) => n + 1);
   };
@@ -1079,7 +1105,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       return created;
     } catch (error) {
       console.error(error);
-      alert("Failed to save export preset. Please try again.");
+      toast.error("Failed to save export preset. Please try again.");
       return null;
     }
   };
@@ -1101,7 +1127,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       return updated;
     } catch (error) {
       console.error(error);
-      alert("Failed to update export preset. Please try again.");
+      toast.error("Failed to update export preset. Please try again.");
       return null;
     }
   };
@@ -1112,7 +1138,7 @@ export default function OrgPage({ params }: OrgPageProps) {
       setExportConfigs((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
       console.error(error);
-      alert("Failed to delete export preset. Please try again.");
+      toast.error("Failed to delete export preset. Please try again.");
     }
   };
 
@@ -1127,8 +1153,6 @@ export default function OrgPage({ params }: OrgPageProps) {
         isOpen={sidebarOpen}
         onToggle={toggleSidebar}
         sections={sections}
-        activeSection={activeSection}
-        onNavigate={scrollToSection}
         onReorderSections={canEdit ? handleReorderSections : undefined}
         onRenameSection={canEdit ? handleUpdateSection : undefined}
         reorderEnabled={canEdit}

@@ -10,8 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Trash2 } from "lucide-react";
 import type { ExportConfigPayload } from "@/types/export-config";
+import { toast } from "@/lib/toast";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface Variable {
   id: string;
@@ -80,6 +82,7 @@ export function ExportModal({
   onUpdateExportConfig,
   onDeleteExportConfig,
 }: ExportModalProps) {
+  const confirm = useConfirm();
   const [includeVariables, setIncludeVariables] = useState(true);
   const [includeCustomRules, setIncludeCustomRules] = useState(true);
   const [selectedSections, setSelectedSections] = useState<Set<string>>(
@@ -91,6 +94,7 @@ export function ExportModal({
   const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
   const [isSavingPreset, setIsSavingPreset] = useState(false);
+  const [openPhaseGroups, setOpenPhaseGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open || sections.length === 0) return;
@@ -127,6 +131,29 @@ export function ExportModal({
     phaseGroups,
   ]);
 
+  const { groupedSections, standaloneSections } = useMemo(() => {
+    const grouped = new Map<string, Section[]>();
+    const standalone: Section[] = [];
+    for (const section of sections) {
+      if (section.phaseGroupId) {
+        const existing = grouped.get(section.phaseGroupId) ?? [];
+        existing.push(section);
+        grouped.set(section.phaseGroupId, existing);
+      } else {
+        standalone.push(section);
+      }
+    }
+    return { groupedSections: grouped, standaloneSections: standalone };
+  }, [sections]);
+
+  const faqCountBySectionId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const faq of faqs) {
+      counts.set(faq.sectionId, (counts.get(faq.sectionId) ?? 0) + 1);
+    }
+    return counts;
+  }, [faqs]);
+
   useEffect(() => {
     if (selectedPhaseGroups.size === 0) return;
     setSelectedPhaseGroups((prev) => {
@@ -134,19 +161,6 @@ export function ExportModal({
       return next.size === prev.size ? prev : next;
     });
   }, [groupIdSet, selectedPhaseGroups.size]);
-
-  const groupSectionCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const group of phaseGroups) {
-      counts.set(group.id, 0);
-    }
-    for (const section of sections) {
-      if (!section.phaseGroupId) continue;
-      if (!counts.has(section.phaseGroupId)) continue;
-      counts.set(section.phaseGroupId, (counts.get(section.phaseGroupId) ?? 0) + 1);
-    }
-    return counts;
-  }, [phaseGroups, sections]);
 
   const buildConfig = (): ExportConfigPayload => ({
     includeVariables,
@@ -201,11 +215,24 @@ export function ExportModal({
   };
 
   const selectAll = () => {
-    setSelectedSections(new Set(sections.map((s) => s.id)));
+    setSelectedSections((prev) => {
+      const next = new Set(prev);
+      for (const section of standaloneSections) {
+        next.add(section.id);
+      }
+      return next;
+    });
   };
 
   const selectNone = () => {
-    setSelectedSections(new Set());
+    setSelectedSections((prev) => {
+      if (standaloneSections.length === 0) return prev;
+      const next = new Set(prev);
+      for (const section of standaloneSections) {
+        next.delete(section.id);
+      }
+      return next;
+    });
   };
 
   const effectiveSectionIds = useMemo(() => {
@@ -231,7 +258,7 @@ export function ExportModal({
       }
     } catch (error) {
       console.error(error);
-      alert("Failed to save export preset. Please try again.");
+      toast.error("Failed to save export preset. Please try again.");
     } finally {
       setIsSavingPreset(false);
     }
@@ -257,7 +284,7 @@ export function ExportModal({
       }
     } catch (error) {
       console.error(error);
-      alert("Failed to update export preset. Please try again.");
+      toast.error("Failed to update export preset. Please try again.");
     } finally {
       setIsSavingPreset(false);
     }
@@ -265,7 +292,13 @@ export function ExportModal({
 
   const handleDeletePreset = async () => {
     if (!canManageConfigs || !onDeleteExportConfig || !selectedConfigId) return;
-    if (!confirm("Delete this export preset?")) return;
+    const confirmed = await confirm({
+      title: "Delete this export preset?",
+      description: "This action cannot be undone.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     setIsSavingPreset(true);
     try {
       await onDeleteExportConfig(selectedConfigId);
@@ -273,7 +306,7 @@ export function ExportModal({
       setPresetName("");
     } catch (error) {
       console.error(error);
-      alert("Failed to delete export preset. Please try again.");
+      toast.error("Failed to delete export preset. Please try again.");
     } finally {
       setIsSavingPreset(false);
     }
@@ -434,23 +467,96 @@ export function ExportModal({
 
               <div className="space-y-2 max-h-40 overflow-auto">
                 {phaseGroups.map((group) => {
-                  const sectionCount = groupSectionCounts.get(group.id) ?? 0;
+                  const groupSections = groupedSections.get(group.id) ?? [];
+                  const sectionCount = groupSections.length;
+                  const isOpen = openPhaseGroups.has(group.id);
+                  const groupSelected = selectedPhaseGroups.has(group.id);
                   return (
-                    <div key={group.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`group-${group.id}`}
-                        checked={selectedPhaseGroups.has(group.id)}
-                        onCheckedChange={() => togglePhaseGroup(group.id)}
-                      />
-                      <label
-                        htmlFor={`group-${group.id}`}
-                        className="text-sm cursor-pointer flex-1"
-                      >
-                        {group.name}
-                        <span className="text-muted-foreground ml-2">
-                          ({sectionCount} section{sectionCount !== 1 ? "s" : ""})
-                        </span>
-                      </label>
+                    <div key={group.id} className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`group-${group.id}`}
+                          checked={groupSelected}
+                          onCheckedChange={() => togglePhaseGroup(group.id)}
+                        />
+                        <label
+                          htmlFor={`group-${group.id}`}
+                          className="text-sm cursor-pointer flex-1"
+                        >
+                          {group.name}
+                          <span className="text-muted-foreground ml-2">
+                            ({sectionCount} section{sectionCount !== 1 ? "s" : ""})
+                          </span>
+                        </label>
+                        {sectionCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="h-6 w-6"
+                            onClick={() => {
+                              setOpenPhaseGroups((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(group.id)) {
+                                  next.delete(group.id);
+                                } else {
+                                  next.add(group.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            aria-label={
+                              isOpen ? "Hide group sections" : "Show group sections"
+                            }
+                          >
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${
+                                isOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </Button>
+                        )}
+                      </div>
+                      {isOpen && sectionCount > 0 && (
+                        <div className="ml-6 space-y-1">
+                          {groupSections.map((section) => {
+                            const faqCount = faqCountBySectionId.get(section.id) ?? 0;
+                            const sectionIncludedByGroup = groupSelected;
+                            return (
+                              <div
+                                key={section.id}
+                                className="flex items-center space-x-2"
+                              >
+                                <Checkbox
+                                  id={`section-${section.id}`}
+                                  checked={
+                                    sectionIncludedByGroup ||
+                                    selectedSections.has(section.id)
+                                  }
+                                  onCheckedChange={() => {
+                                    if (sectionIncludedByGroup) return;
+                                    toggleSection(section.id);
+                                  }}
+                                  disabled={sectionIncludedByGroup}
+                                />
+                                <label
+                                  htmlFor={`section-${section.id}`}
+                                  className="text-sm cursor-pointer flex-1"
+                                >
+                                  {section.name}
+                                  <span className="text-muted-foreground ml-2">
+                                    ({faqCount} FAQ{faqCount !== 1 ? "s" : ""})
+                                  </span>
+                                  {sectionIncludedByGroup && (
+                                    <span className="text-muted-foreground ml-2">
+                                      (via group)
+                                    </span>
+                                  )}
+                                </label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -473,23 +579,14 @@ export function ExportModal({
             </div>
 
             <div className="space-y-2 max-h-60 overflow-auto">
-              {sections.map((section) => {
-                const faqCount = faqs.filter((f) => f.sectionId === section.id).length;
-                const sectionIncludedByGroup =
-                  !!section.phaseGroupId &&
-                  selectedPhaseGroups.has(section.phaseGroupId);
+              {standaloneSections.map((section) => {
+                const faqCount = faqCountBySectionId.get(section.id) ?? 0;
                 return (
                   <div key={section.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={section.id}
-                      checked={
-                        sectionIncludedByGroup || selectedSections.has(section.id)
-                      }
-                      onCheckedChange={() => {
-                        if (sectionIncludedByGroup) return;
-                        toggleSection(section.id);
-                      }}
-                      disabled={sectionIncludedByGroup}
+                      checked={selectedSections.has(section.id)}
+                      onCheckedChange={() => toggleSection(section.id)}
                     />
                     <label
                       htmlFor={section.id}
@@ -499,18 +596,15 @@ export function ExportModal({
                       <span className="text-muted-foreground ml-2">
                         ({faqCount} FAQ{faqCount !== 1 ? "s" : ""})
                       </span>
-                      {sectionIncludedByGroup && (
-                        <span className="text-muted-foreground ml-2">
-                          (via group)
-                        </span>
-                      )}
                     </label>
                   </div>
                 );
               })}
 
-              {sections.length === 0 && (
-                <p className="text-sm text-muted-foreground">No sections to export</p>
+              {standaloneSections.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No standalone sections to export
+                </p>
               )}
             </div>
           </div>

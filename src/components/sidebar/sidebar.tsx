@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo, useRef, type CSSProperties } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
+import { useActiveSection } from "@/hooks/use-active-section";
 import { SidebarNavItem } from "./sidebar-nav-item";
 import { PhaseGroupItem } from "./phase-group-item";
 import {
@@ -61,8 +63,6 @@ interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   sections: Section[];
-  activeSection: string | null;
-  onNavigate: (sectionId: string) => void;
   onReorderSections?: (orderedIds: string[]) => void;
   onRenameSection?: (sectionId: string, name: string) => void | Promise<void>;
   reorderEnabled?: boolean;
@@ -279,8 +279,6 @@ export function Sidebar({
   isOpen,
   onToggle,
   sections,
-  activeSection,
-  onNavigate,
   onReorderSections,
   onRenameSection,
   reorderEnabled = true,
@@ -305,6 +303,7 @@ export function Sidebar({
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const navRef = useRef<HTMLElement | null>(null);
+  const { activeSection, scrollToSection } = useActiveSection(sections);
 
   useEffect(() => {
     if (!activeSection || !isOpen) return;
@@ -646,7 +645,7 @@ export function Sidebar({
       await onRenameSection?.(current.id, nextName);
     } catch (err) {
       console.error(err);
-      alert("Failed to rename section. Please try again.");
+      toast.error("Failed to rename section. Please try again.");
     }
   };
 
@@ -709,7 +708,7 @@ export function Sidebar({
                 label="System Prompt Logic"
                 icon={<FileText className="h-4 w-4" />}
                 isActive={activeSection === "section-custom-rules"}
-                onClick={() => onNavigate("section-custom-rules")}
+                onClick={() => scrollToSection("section-custom-rules")}
                 dataId="section-custom-rules"
               />
 
@@ -718,7 +717,7 @@ export function Sidebar({
                 label="Variables"
                 icon={<Variable className="h-4 w-4" />}
                 isActive={activeSection === "section-variables"}
-                onClick={() => onNavigate("section-variables")}
+                onClick={() => scrollToSection("section-variables")}
                 dataId="section-variables"
               />
 
@@ -770,7 +769,7 @@ export function Sidebar({
                                 group={group}
                                 sections={groupSections}
                                 activeSection={activeSection}
-                                onNavigate={onNavigate}
+                                onNavigate={scrollToSection}
                                 onRenameGroup={onRenamePhaseGroup}
                                 onDeleteGroup={onDeletePhaseGroup}
                                 onReorderSectionsInGroup={onReorderSectionsInGroup}
@@ -806,7 +805,7 @@ export function Sidebar({
                               <SortableSectionNavItem
                                 section={section}
                                 isActive={activeSection === `section-faq-${section.id}`}
-                                onNavigate={onNavigate}
+                                onNavigate={scrollToSection}
                                 count={faqCounts[section.id]}
                                 reorderEnabled={canReorderSections}
                                 renameEnabled={canRenameSections}
