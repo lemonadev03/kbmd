@@ -15,6 +15,13 @@
       "when": 1768385732998,
       "tag": "0001_cuddly_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768427409003,
+      "tag": "0002_mighty_boreas",
+      "breakpoints": true
     }
   ]
 }

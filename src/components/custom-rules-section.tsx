@@ -13,6 +13,7 @@ interface CustomRulesSectionProps {
   content: string;
   onUpdate: (content: string) => void;
   resetSignal: number;
+  readOnly?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
 }
@@ -21,9 +22,11 @@ export function CustomRulesSection({
   content,
   onUpdate,
   resetSignal,
+  readOnly = false,
   searchQuery = "",
   currentMatchId = null,
 }: CustomRulesSectionProps) {
+  const canEdit = !readOnly;
   const [editValue, setEditValue] = useState(content);
   const [isPreview, setIsPreview] = useState(false);
 
@@ -34,7 +37,9 @@ export function CustomRulesSection({
 
   const handleChange = (value: string) => {
     setEditValue(value);
-    onUpdate(value);
+    if (canEdit) {
+      onUpdate(value);
+    }
   };
 
   return (
@@ -56,28 +61,30 @@ export function CustomRulesSection({
 
       <Card className="mt-3">
         <CardContent>
-          <div className="flex justify-end mb-2">
-            <div className="flex gap-1">
-              <Button
-                variant={!isPreview ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setIsPreview(false)}
-              >
-                <Edit className="h-4 w-4 mr-1" />
-                Edit
-              </Button>
-              <Button
-                variant={isPreview ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setIsPreview(true)}
-              >
-                <Eye className="h-4 w-4 mr-1" />
-                Preview
-              </Button>
+          {canEdit && (
+            <div className="flex justify-end mb-2">
+              <div className="flex gap-1">
+                <Button
+                  variant={!isPreview ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setIsPreview(false)}
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant={isPreview ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setIsPreview(true)}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  Preview
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
-          {isPreview ? (
+          {isPreview || !canEdit ? (
             <div className="prose prose-sm dark:prose-invert max-w-none border border-border/60 rounded-xl p-4 min-h-[200px] bg-background/70">
               {editValue ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>

@@ -44,6 +44,7 @@ interface FAQSectionProps {
   onDeleteFaq: (id: string) => void;
   onReorderFaqs?: (sectionId: string, orderedIds: string[]) => void;
   reorderDisabled?: boolean;
+  readOnly?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
   // Phase group props
@@ -63,12 +64,14 @@ export function FAQSection({
   onDeleteFaq,
   onReorderFaqs,
   reorderDisabled,
+  readOnly = false,
   searchQuery,
   currentMatchId,
   phaseGroups = [],
   onAddToGroup,
   onRemoveFromGroup,
 }: FAQSectionProps) {
+  const canEdit = !readOnly;
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(section.name);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
@@ -90,6 +93,7 @@ export function FAQSection({
   }, [showGroupMenu]);
 
   const handleSave = () => {
+    if (!canEdit) return;
     if (editName.trim()) {
       onUpdateSection(section.id, editName.trim());
       setIsEditing(false);
@@ -142,70 +146,72 @@ export function FAQSection({
                 section.name
               )}
             </h2>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() => setIsEditing(true)}
-                title="Rename section"
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-
-              {/* Phase group actions */}
-              {isInGroup && onRemoveFromGroup && (
+            {canEdit && (
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8"
-                  onClick={() => onRemoveFromGroup(section.id)}
-                  title="Remove from phase group"
+                  onClick={() => setIsEditing(true)}
+                  title="Rename section"
                 >
-                  <Unlink className="h-4 w-4" />
+                  <Pencil className="h-4 w-4" />
                 </Button>
-              )}
 
-              {!isInGroup && availableGroups.length > 0 && onAddToGroup && (
-                <div className="relative" ref={groupMenuRef}>
+                {/* Phase group actions */}
+                {isInGroup && onRemoveFromGroup && (
                   <Button
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8"
-                    onClick={() => setShowGroupMenu(!showGroupMenu)}
-                    title="Add to phase group"
+                    onClick={() => onRemoveFromGroup(section.id)}
+                    title="Remove from phase group"
                   >
-                    <Layers className="h-4 w-4" />
+                    <Unlink className="h-4 w-4" />
                   </Button>
-                  {showGroupMenu && (
-                    <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-[160px] py-1">
-                      {availableGroups.map((g) => (
-                        <button
-                          key={g.id}
-                          className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground"
-                          onClick={() => {
-                            onAddToGroup(section.id, g.id);
-                            setShowGroupMenu(false);
-                          }}
-                        >
-                          {g.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
 
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() => onDeleteSection(section.id)}
-                title="Delete section"
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
+                {!isInGroup && availableGroups.length > 0 && onAddToGroup && (
+                  <div className="relative" ref={groupMenuRef}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={() => setShowGroupMenu(!showGroupMenu)}
+                      title="Add to phase group"
+                    >
+                      <Layers className="h-4 w-4" />
+                    </Button>
+                    {showGroupMenu && (
+                      <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-[160px] py-1">
+                        {availableGroups.map((g) => (
+                          <button
+                            key={g.id}
+                            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground"
+                            onClick={() => {
+                              onAddToGroup(section.id, g.id);
+                              setShowGroupMenu(false);
+                            }}
+                          >
+                            {g.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={() => onDeleteSection(section.id)}
+                  title="Delete section"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -219,6 +225,7 @@ export function FAQSection({
         onDelete={onDeleteFaq}
         onReorderFaqs={onReorderFaqs}
         reorderDisabled={reorderDisabled}
+        readOnly={readOnly}
         searchQuery={searchQuery}
         currentMatchId={currentMatchId}
       />

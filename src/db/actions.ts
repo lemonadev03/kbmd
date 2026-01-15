@@ -1,46 +1,102 @@
 "use server";
 
-import { db, variables, sections, faqs, customRules, phaseGroups } from "./index";
-import { eq, asc, inArray, sql } from "drizzle-orm";
+import {
+  db,
+  variables,
+  sections,
+  faqs,
+  customRules,
+  phaseGroups,
+  userSettings,
+} from "./index";
+import { and, eq, asc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireAdmin, requireOrgContext } from "@/lib/org";
 
-// Variable actions
-export async function getVariables() {
-  return db.select().from(variables);
+export async function getOrganizationBySlug(orgSlug: string) {
+  const ctx = await requireOrgContext(orgSlug);
+  await db
+    .insert(userSettings)
+    .values({ userId: ctx.userId, lastOrgId: ctx.orgId })
+    .onConflictDoUpdate({
+      target: userSettings.userId,
+      set: { lastOrgId: ctx.orgId, updatedAt: new Date() },
+    });
+  return {
+    id: ctx.orgId,
+    name: ctx.orgName,
+    slug: ctx.orgSlug,
+    role: ctx.role,
+  };
 }
 
-export async function createVariable(key: string, value: string) {
-  const result = await db.insert(variables).values({ key, value }).returning();
-  revalidatePath("/");
+// Variable actions
+export async function getVariables(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
+  return db.select().from(variables).where(eq(variables.orgId, orgId));
+}
+
+export async function createVariable(
+  orgSlug: string,
+  key: string,
+  value: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const result = await db
+    .insert(variables)
+    .values({ orgId, key, value })
+    .returning();
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function updateVariable(id: string, key: string, value: string) {
+export async function updateVariable(
+  orgSlug: string,
+  id: string,
+  key: string,
+  value: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const result = await db
     .update(variables)
     .set({ key, value })
-    .where(eq(variables.id, id))
+    .where(and(eq(variables.id, id), eq(variables.orgId, orgId)))
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function deleteVariable(id: string) {
-  await db.delete(variables).where(eq(variables.id, id));
-  revalidatePath("/");
+export async function deleteVariable(orgSlug: string, id: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  await db
+    .delete(variables)
+    .where(and(eq(variables.id, id), eq(variables.orgId, orgId)));
+  revalidatePath(`/org/${orgSlug}`);
 }
 
 // Section actions
-export async function getSections() {
-  return db.select().from(sections).orderBy(asc(sections.order));
+export async function getSections(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
+  return db
+    .select()
+    .from(sections)
+    .where(eq(sections.orgId, orgId))
+    .orderBy(asc(sections.order));
 }
 
-export async function reorderSections(params: { orderedIds: string[] }) {
+export async function reorderSections(
+  orgSlug: string,
+  params: { orderedIds: string[] }
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const { orderedIds } = params;
   if (orderedIds.length === 0) return;
 
   // neon-http driver doesn't support transactions; use a single atomic UPDATE.
-  const existing = await db.select({ id: sections.id }).from(sections);
+  const existing = await db
+    .select({ id: sections.id })
+    .from(sections)
+    .where(eq(sections.orgId, orgId));
   const existingIds = new Set(existing.map((r) => r.id));
 
   const filteredOrdered = orderedIds.filter((id) => existingIds.has(id));
@@ -62,111 +118,163 @@ export async function reorderSections(params: { orderedIds: string[] }) {
       ELSE "order"
     END
     WHERE ${inArray(sections.id, finalOrderedIds)}
+    AND "org_id" = ${orgId}::uuid
   `);
 
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
 }
 
-export async function createSection(name: string) {
-  const allSections = await getSections();
+export async function createSection(orgSlug: string, name: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const allSections = await db
+    .select({ id: sections.id })
+    .from(sections)
+    .where(eq(sections.orgId, orgId));
   const result = await db
     .insert(sections)
-    .values({ name, order: allSections.length })
+    .values({ orgId, name, order: allSections.length })
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function createSectionInGroup(groupId: string, name: string) {
-  const allSections = await getSections();
+export async function createSectionInGroup(
+  orgSlug: string,
+  groupId: string,
+  name: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const group = await db
+    .select({ id: phaseGroups.id })
+    .from(phaseGroups)
+    .where(and(eq(phaseGroups.id, groupId), eq(phaseGroups.orgId, orgId)))
+    .limit(1);
+  if (!group[0]) {
+    throw new Error("Invalid phase group");
+  }
+
+  const allSections = await db
+    .select({ id: sections.id })
+    .from(sections)
+    .where(eq(sections.orgId, orgId));
   const sectionsInGroup = await db
     .select({ phaseOrder: sections.phaseOrder })
     .from(sections)
-    .where(eq(sections.phaseGroupId, groupId));
+    .where(
+      and(eq(sections.phaseGroupId, groupId), eq(sections.orgId, orgId))
+    );
   const maxOrder = Math.max(-1, ...sectionsInGroup.map((s) => s.phaseOrder ?? 0));
 
   const result = await db
     .insert(sections)
     .values({
+      orgId,
       name,
       order: allSections.length,
       phaseGroupId: groupId,
       phaseOrder: maxOrder + 1,
     })
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function updateSection(id: string, name: string) {
+export async function updateSection(
+  orgSlug: string,
+  id: string,
+  name: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const result = await db
     .update(sections)
     .set({ name })
-    .where(eq(sections.id, id))
+    .where(and(eq(sections.id, id), eq(sections.orgId, orgId)))
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function deleteSection(id: string) {
-  await db.delete(sections).where(eq(sections.id, id));
-  revalidatePath("/");
+export async function deleteSection(orgSlug: string, id: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  await db
+    .delete(sections)
+    .where(and(eq(sections.id, id), eq(sections.orgId, orgId)));
+  revalidatePath(`/org/${orgSlug}`);
 }
 
 // FAQ actions
-export async function getFaqs() {
+export async function getFaqs(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
   return db
     .select()
     .from(faqs)
+    .where(eq(faqs.orgId, orgId))
     .orderBy(asc(faqs.sectionId), asc(faqs.order), asc(faqs.createdAt));
 }
 
-export async function getFaqsBySection(sectionId: string) {
+export async function getFaqsBySection(orgSlug: string, sectionId: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
   return db
     .select()
     .from(faqs)
-    .where(eq(faqs.sectionId, sectionId))
+    .where(and(eq(faqs.sectionId, sectionId), eq(faqs.orgId, orgId)))
     .orderBy(asc(faqs.order), asc(faqs.createdAt));
 }
 
 export async function createFaq(
+  orgSlug: string,
   sectionId: string,
   question: string,
   answer: string,
   notes: string
 ) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const section = await db
+    .select({ id: sections.id })
+    .from(sections)
+    .where(and(eq(sections.id, sectionId), eq(sections.orgId, orgId)))
+    .limit(1);
+  if (!section[0]) {
+    throw new Error("Invalid section");
+  }
+
   const rows = await db
     .select({ maxOrder: sql<number | null>`max(${faqs.order})` })
     .from(faqs)
-    .where(eq(faqs.sectionId, sectionId));
+    .where(and(eq(faqs.sectionId, sectionId), eq(faqs.orgId, orgId)));
   const nextOrder = (rows[0]?.maxOrder ?? -1) + 1;
 
   const result = await db
     .insert(faqs)
-    .values({ sectionId, question, answer, notes, order: nextOrder })
+    .values({ orgId, sectionId, question, answer, notes, order: nextOrder })
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
 export async function updateFaq(
+  orgSlug: string,
   id: string,
   question: string,
   answer: string,
   notes: string
 ) {
+  const { orgId } = await requireAdmin(orgSlug);
   const result = await db
     .update(faqs)
     .set({ question, answer, notes, updatedAt: new Date() })
-    .where(eq(faqs.id, id))
+    .where(and(eq(faqs.id, id), eq(faqs.orgId, orgId)))
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function deleteFaq(id: string) {
-  await db.delete(faqs).where(eq(faqs.id, id));
-  revalidatePath("/");
+export async function deleteFaq(orgSlug: string, id: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  await db
+    .delete(faqs)
+    .where(and(eq(faqs.id, id), eq(faqs.orgId, orgId)));
+  revalidatePath(`/org/${orgSlug}`);
 }
 
 type FaqUpsertInput = {
@@ -178,14 +286,32 @@ type FaqUpsertInput = {
   order: number;
 };
 
-export async function applyFaqBatch(params: {
-  upserts: FaqUpsertInput[];
-  deletes: string[];
-}) {
+export async function applyFaqBatch(
+  orgSlug: string,
+  params: { upserts: FaqUpsertInput[]; deletes: string[] }
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const { upserts, deletes } = params;
 
   if (upserts.length === 0 && deletes.length === 0) {
     return { upserted: 0, deleted: 0 };
+  }
+
+  if (upserts.length > 0) {
+    const sectionIds = Array.from(
+      new Set(upserts.map((u) => u.sectionId))
+    ).filter(Boolean);
+    if (sectionIds.length > 0) {
+      const validSections = await db
+        .select({ id: sections.id })
+        .from(sections)
+        .where(
+          and(eq(sections.orgId, orgId), inArray(sections.id, sectionIds))
+        );
+      if (validSections.length !== sectionIds.length) {
+        throw new Error("Invalid section");
+      }
+    }
   }
 
   if (upserts.length > 0) {
@@ -194,6 +320,7 @@ export async function applyFaqBatch(params: {
       .values(
         upserts.map((f) => ({
           id: f.id,
+          orgId,
           sectionId: f.sectionId,
           question: f.question,
           answer: f.answer,
@@ -215,85 +342,119 @@ export async function applyFaqBatch(params: {
   }
 
   if (deletes.length > 0) {
-    await db.delete(faqs).where(inArray(faqs.id, deletes));
+    await db
+      .delete(faqs)
+      .where(and(eq(faqs.orgId, orgId), inArray(faqs.id, deletes)));
   }
 
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return { upserted: upserts.length, deleted: deletes.length };
 }
 
 // Export helper - get all data
-export async function getAllData() {
+export async function getAllData(orgSlug: string) {
   const [vars, sects, faqList] = await Promise.all([
-    getVariables(),
-    getSections(),
-    getFaqs(),
+    getVariables(orgSlug),
+    getSections(orgSlug),
+    getFaqs(orgSlug),
   ]);
   return { variables: vars, sections: sects, faqs: faqList };
 }
 
 // Custom Rules actions
-export async function getCustomRules() {
-  const rows = await db.select().from(customRules).limit(1);
+export async function getCustomRules(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
+  const rows = await db
+    .select()
+    .from(customRules)
+    .where(eq(customRules.orgId, orgId))
+    .limit(1);
   return rows[0] ?? null;
 }
 
-export async function saveCustomRules(content: string) {
-  const existing = await getCustomRules();
+export async function saveCustomRules(orgSlug: string, content: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const existing = await getCustomRules(orgSlug);
 
   if (existing) {
     const result = await db
       .update(customRules)
       .set({ content, updatedAt: new Date() })
-      .where(eq(customRules.id, existing.id))
+      .where(
+        and(eq(customRules.id, existing.id), eq(customRules.orgId, orgId))
+      )
       .returning();
-    revalidatePath("/");
+    revalidatePath(`/org/${orgSlug}`);
     return result[0];
   } else {
     const result = await db
       .insert(customRules)
-      .values({ content })
+      .values({ orgId, content })
       .returning();
-    revalidatePath("/");
+    revalidatePath(`/org/${orgSlug}`);
     return result[0];
   }
 }
 
 // Phase Group actions
-export async function getPhaseGroups() {
-  return db.select().from(phaseGroups).orderBy(asc(phaseGroups.order));
+export async function getPhaseGroups(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
+  return db
+    .select()
+    .from(phaseGroups)
+    .where(eq(phaseGroups.orgId, orgId))
+    .orderBy(asc(phaseGroups.order));
 }
 
-export async function createPhaseGroup(name: string) {
-  const allGroups = await getPhaseGroups();
+export async function createPhaseGroup(orgSlug: string, name: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const allGroups = await db
+    .select({ id: phaseGroups.id })
+    .from(phaseGroups)
+    .where(eq(phaseGroups.orgId, orgId));
   const result = await db
     .insert(phaseGroups)
-    .values({ name, order: allGroups.length })
+    .values({ orgId, name, order: allGroups.length })
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function updatePhaseGroup(id: string, name: string) {
+export async function updatePhaseGroup(
+  orgSlug: string,
+  id: string,
+  name: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const result = await db
     .update(phaseGroups)
     .set({ name })
-    .where(eq(phaseGroups.id, id))
+    .where(and(eq(phaseGroups.id, id), eq(phaseGroups.orgId, orgId)))
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function deletePhaseGroup(id: string) {
-  await db.delete(phaseGroups).where(eq(phaseGroups.id, id));
-  revalidatePath("/");
+export async function deletePhaseGroup(orgSlug: string, id: string) {
+  const { orgId } = await requireAdmin(orgSlug);
+  await db
+    .delete(phaseGroups)
+    .where(and(eq(phaseGroups.id, id), eq(phaseGroups.orgId, orgId)));
+  revalidatePath(`/org/${orgSlug}`);
 }
 
-export async function reorderPhaseGroups(params: { orderedIds: string[] }) {
+export async function reorderPhaseGroups(
+  orgSlug: string,
+  params: { orderedIds: string[] }
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const { orderedIds } = params;
   if (orderedIds.length === 0) return;
 
-  const existing = await db.select({ id: phaseGroups.id }).from(phaseGroups);
+  const existing = await db
+    .select({ id: phaseGroups.id })
+    .from(phaseGroups)
+    .where(eq(phaseGroups.orgId, orgId));
   const existingIds = new Set(existing.map((r) => r.id));
 
   const filteredOrdered = orderedIds.filter((id) => existingIds.has(id));
@@ -314,42 +475,73 @@ export async function reorderPhaseGroups(params: { orderedIds: string[] }) {
       ELSE "order"
     END
     WHERE ${inArray(phaseGroups.id, finalOrderedIds)}
+    AND "org_id" = ${orgId}::uuid
   `);
 
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
 }
 
-export async function addSectionToGroup(sectionId: string, groupId: string) {
+export async function addSectionToGroup(
+  orgSlug: string,
+  sectionId: string,
+  groupId: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
+  const group = await db
+    .select({ id: phaseGroups.id })
+    .from(phaseGroups)
+    .where(and(eq(phaseGroups.id, groupId), eq(phaseGroups.orgId, orgId)))
+    .limit(1);
+  if (!group[0]) {
+    throw new Error("Invalid phase group");
+  }
+
+  const section = await db
+    .select({ id: sections.id })
+    .from(sections)
+    .where(and(eq(sections.id, sectionId), eq(sections.orgId, orgId)))
+    .limit(1);
+  if (!section[0]) {
+    throw new Error("Invalid section");
+  }
+
   // Get max phaseOrder in group
   const sectionsInGroup = await db
     .select()
     .from(sections)
-    .where(eq(sections.phaseGroupId, groupId));
+    .where(
+      and(eq(sections.phaseGroupId, groupId), eq(sections.orgId, orgId))
+    );
   const maxOrder = Math.max(-1, ...sectionsInGroup.map((s) => s.phaseOrder ?? 0));
 
   const result = await db
     .update(sections)
     .set({ phaseGroupId: groupId, phaseOrder: maxOrder + 1 })
-    .where(eq(sections.id, sectionId))
+    .where(and(eq(sections.id, sectionId), eq(sections.orgId, orgId)))
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function removeSectionFromGroup(sectionId: string) {
+export async function removeSectionFromGroup(
+  orgSlug: string,
+  sectionId: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const result = await db
     .update(sections)
     .set({ phaseGroupId: null, phaseOrder: 0 })
-    .where(eq(sections.id, sectionId))
+    .where(and(eq(sections.id, sectionId), eq(sections.orgId, orgId)))
     .returning();
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
   return result[0];
 }
 
-export async function reorderSectionsInGroup(params: {
-  groupId: string;
-  orderedSectionIds: string[];
-}) {
+export async function reorderSectionsInGroup(
+  orgSlug: string,
+  params: { groupId: string; orderedSectionIds: string[] }
+) {
+  const { orgId } = await requireAdmin(orgSlug);
   const { groupId, orderedSectionIds } = params;
   if (orderedSectionIds.length === 0) return;
 
@@ -364,7 +556,8 @@ export async function reorderSectionsInGroup(params: {
     END
     WHERE ${inArray(sections.id, orderedSectionIds)}
     AND "phase_group_id" = ${groupId}::uuid
+    AND "org_id" = ${orgId}::uuid
   `);
 
-  revalidatePath("/");
+  revalidatePath(`/org/${orgSlug}`);
 }

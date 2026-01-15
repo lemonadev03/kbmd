@@ -48,6 +48,7 @@ interface FAQTableProps {
   onDelete: (id: string) => void;
   onReorderFaqs?: (sectionId: string, orderedIds: string[]) => void;
   reorderDisabled?: boolean;
+  readOnly?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
 }
@@ -63,6 +64,7 @@ function FAQCell({
   widthClass,
   isEditing,
   editValue,
+  readOnly,
   onStartEdit,
   onEditChange,
   onFinishEdit,
@@ -75,6 +77,7 @@ function FAQCell({
   widthClass: string;
   isEditing: boolean;
   editValue: string;
+  readOnly: boolean;
   onStartEdit: (faq: FAQ, field: EditingCell["field"]) => void;
   onEditChange: (faq: FAQ, value: string) => void;
   onFinishEdit: () => void;
@@ -85,6 +88,7 @@ function FAQCell({
   const value = faq[field] || "";
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
   const copied = copiedValue === value;
+  const displayValue = value || (readOnly ? "—" : "Click to add");
 
   const matchIdPrefix = `match-${faq.id}-${field}`;
   const copyDisabled = !value.trim();
@@ -93,16 +97,21 @@ function FAQCell({
     "p-4 border-r border-border/60 relative",
     isEditing
       ? "bg-muted/20"
-      : "cursor-text hover:bg-muted/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+      : cn(
+          "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+          readOnly ? "cursor-default" : "cursor-text hover:bg-muted/40"
+        )
   );
 
   return (
     <div
       className={cn(wrapperClass, "group/cell")}
-      onClick={isEditing ? undefined : () => onStartEdit(faq, field)}
-      tabIndex={isEditing ? -1 : 0}
+      onClick={
+        isEditing || readOnly ? undefined : () => onStartEdit(faq, field)
+      }
+      tabIndex={isEditing || readOnly ? -1 : 0}
       onKeyDown={
-        isEditing
+        isEditing || readOnly
           ? undefined
           : (e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -132,14 +141,14 @@ function FAQCell({
           <div className="prose prose-sm dark:prose-invert max-w-none min-h-[1.5em] whitespace-pre-wrap pr-28 leading-relaxed prose-p:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
             {searchQuery ? (
               <HighlightText
-                text={value || "Click to add"}
+                text={displayValue}
                 query={searchQuery}
                 currentMatchId={currentMatchId ?? undefined}
                 matchIdPrefix={matchIdPrefix}
               />
             ) : (
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {value || "*Click to add*"}
+                {value || (readOnly ? "—" : "*Click to add*")}
               </ReactMarkdown>
             )}
           </div>
@@ -192,12 +201,14 @@ function SortableFAQRow({
   onDelete,
   reorderEnabled,
   reorderDisabledReason,
+  showDelete,
 }: {
   faq: FAQ;
   children: ReactNode;
   onDelete: () => void;
   reorderEnabled: boolean;
   reorderDisabledReason: string;
+  showDelete: boolean;
 }) {
   const {
     setNodeRef,
@@ -242,16 +253,18 @@ function SortableFAQRow({
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </button>
 
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="opacity-0 group-hover/row:opacity-100 transition-opacity"
-          title="Delete"
-          aria-label="Delete"
-          onClick={() => onDelete()}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
+        {showDelete && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="opacity-0 group-hover/row:opacity-100 transition-opacity"
+            title="Delete"
+            aria-label="Delete"
+            onClick={() => onDelete()}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -265,9 +278,11 @@ export function FAQTable({
   onDelete,
   onReorderFaqs,
   reorderDisabled,
+  readOnly = false,
   searchQuery = "",
   currentMatchId = null,
 }: FAQTableProps) {
+  const isReadOnly = readOnly;
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState("");
   const [newRows, setNewRows] = useState<
@@ -281,11 +296,13 @@ export function FAQTable({
   );
 
   const startEdit = (faq: FAQ, field: "question" | "answer" | "notes") => {
+    if (isReadOnly) return;
     setEditingCell({ id: faq.id, field });
     setEditValue(faq[field]);
   };
 
   const handleEditChange = (faq: FAQ, value: string) => {
+    if (isReadOnly) return;
     setEditValue(value);
     // Immediately update the draft so changes can be saved
     if (editingCell) {
@@ -316,6 +333,7 @@ export function FAQTable({
   };
 
   const addNewRow = () => {
+    if (isReadOnly) return;
     const tempId =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -379,7 +397,7 @@ export function FAQTable({
     }
   };
 
-  const canUseDnD = Boolean(onReorderFaqs);
+  const canUseDnD = !isReadOnly && Boolean(onReorderFaqs);
   const reorderEnabled =
     canUseDnD &&
     !reorderDisabled &&
@@ -453,6 +471,7 @@ export function FAQTable({
                     reorderEnabled={reorderEnabled}
                     reorderDisabledReason={reorderDisabledReason}
                     onDelete={() => onDelete(faq.id)}
+                    showDelete={!isReadOnly}
                   >
                     <FAQCell
                       faq={faq}
@@ -463,6 +482,7 @@ export function FAQTable({
                         editingCell?.field === "question"
                       }
                       editValue={editValue}
+                      readOnly={isReadOnly}
                       onStartEdit={startEdit}
                       onEditChange={handleEditChange}
                       onFinishEdit={finishEdit}
@@ -479,6 +499,7 @@ export function FAQTable({
                         editingCell?.field === "answer"
                       }
                       editValue={editValue}
+                      readOnly={isReadOnly}
                       onStartEdit={startEdit}
                       onEditChange={handleEditChange}
                       onFinishEdit={finishEdit}
@@ -494,6 +515,7 @@ export function FAQTable({
                         editingCell?.id === faq.id && editingCell?.field === "notes"
                       }
                       editValue={editValue}
+                      readOnly={isReadOnly}
                       onStartEdit={startEdit}
                       onEditChange={handleEditChange}
                       onFinishEdit={finishEdit}
@@ -519,6 +541,7 @@ export function FAQTable({
                     editingCell?.id === faq.id && editingCell?.field === "question"
                   }
                   editValue={editValue}
+                  readOnly={isReadOnly}
                   onStartEdit={startEdit}
                   onEditChange={handleEditChange}
                   onFinishEdit={finishEdit}
@@ -534,6 +557,7 @@ export function FAQTable({
                     editingCell?.id === faq.id && editingCell?.field === "answer"
                   }
                   editValue={editValue}
+                  readOnly={isReadOnly}
                   onStartEdit={startEdit}
                   onEditChange={handleEditChange}
                   onFinishEdit={finishEdit}
@@ -549,6 +573,7 @@ export function FAQTable({
                     editingCell?.id === faq.id && editingCell?.field === "notes"
                   }
                   editValue={editValue}
+                  readOnly={isReadOnly}
                   onStartEdit={startEdit}
                   onEditChange={handleEditChange}
                   onFinishEdit={finishEdit}
@@ -557,16 +582,18 @@ export function FAQTable({
                   currentMatchId={currentMatchId}
                 />
                 <div className="w-12 p-2 flex justify-center">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="opacity-0 group-hover/row:opacity-100 transition-opacity"
-                    title="Delete"
-                    aria-label="Delete"
-                    onClick={() => onDelete(faq.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  {!isReadOnly && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="opacity-0 group-hover/row:opacity-100 transition-opacity"
+                      title="Delete"
+                      aria-label="Delete"
+                      onClick={() => onDelete(faq.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))
@@ -672,13 +699,15 @@ export function FAQTable({
           })}
 
           {/* Add Row */}
-          <div
-            className="flex items-center gap-2 p-3 px-4 text-muted-foreground hover:bg-muted/30 cursor-pointer transition-colors"
-            onClick={addNewRow}
-          >
-            <Plus className="h-4 w-4" />
-            <span className="text-sm">Add FAQ</span>
-          </div>
+          {!isReadOnly && (
+            <div
+              className="flex items-center gap-2 p-3 px-4 text-muted-foreground hover:bg-muted/30 cursor-pointer transition-colors"
+              onClick={addNewRow}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-sm">Add FAQ</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

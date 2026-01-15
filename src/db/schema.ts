@@ -7,6 +7,8 @@ import {
   uuid,
   boolean,
   index,
+  primaryKey,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ============================================================
@@ -108,14 +110,72 @@ export const accountRelations = relations(account, ({ one }) => ({
 // Application Tables
 // ============================================================
 
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [uniqueIndex("organizations_slug_key").on(table.slug)]
+);
+
+export const orgMemberships = pgTable(
+  "org_memberships",
+  {
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("admin"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.orgId, table.userId] }),
+    index("org_memberships_org_id_idx").on(table.orgId),
+    index("org_memberships_user_id_idx").on(table.userId),
+  ]
+);
+
+export const userSettings = pgTable(
+  "user_settings",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    lastOrgId: uuid("last_org_id").references(() => organizations.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("user_settings_last_org_idx").on(table.lastOrgId)]
+);
+
 export const variables = pgTable("variables", {
   id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   key: text("key").notNull(),
   value: text("value").notNull().default(""),
 });
 
 export const phaseGroups = pgTable("phase_groups", {
   id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -123,6 +183,9 @@ export const phaseGroups = pgTable("phase_groups", {
 
 export const sections = pgTable("sections", {
   id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -134,6 +197,9 @@ export const sections = pgTable("sections", {
 
 export const faqs = pgTable("faqs", {
   id: uuid("id").primaryKey().defaultRandom(),
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   sectionId: uuid("section_id")
     .notNull()
     .references(() => sections.id, { onDelete: "cascade" }),
@@ -145,9 +211,16 @@ export const faqs = pgTable("faqs", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const customRules = pgTable("custom_rules", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  content: text("content").notNull().default(""),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const customRules = pgTable(
+  "custom_rules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    content: text("content").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("custom_rules_org_id_key").on(table.orgId)]
+);

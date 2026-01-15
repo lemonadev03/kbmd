@@ -17,7 +17,7 @@ export default function SignInPage() {
   const router = useRouter();
   const session = authClient.useSession();
 
-  const [email, setEmail] = useState("admin@fma.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export default function SignInPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@fma.com"
+                placeholder=""
                 autoComplete="email"
                 disabled={isSubmitting}
               />
