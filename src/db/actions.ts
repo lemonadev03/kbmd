@@ -6,11 +6,13 @@ import {
   sections,
   faqs,
   customRules,
+  customRulesHistory,
   phaseGroups,
   exportConfigs,
   userSettings,
+  user,
 } from "./index";
-import { and, eq, asc, inArray, sql } from "drizzle-orm";
+import { and, eq, asc, desc, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireOrgContext } from "@/lib/org";
 import type { ExportConfigPayload } from "@/types/export-config";
@@ -375,8 +377,25 @@ export async function getCustomRules(orgSlug: string) {
 }
 
 export async function saveCustomRules(orgSlug: string, content: string) {
-  const { orgId } = await requireAdmin(orgSlug);
+  const { orgId, userId } = await requireAdmin(orgSlug);
   const existing = await getCustomRules(orgSlug);
+
+  // Insert history record before updating (only if there's existing content)
+  if (existing && existing.content) {
+    try {
+      await db.insert(customRulesHistory).values({
+        orgId,
+        content: existing.content,
+        createdBy: userId,
+      });
+    } catch (error) {
+      // Table may not exist yet (migration not run) - continue without history
+      const pgError = error as { code?: string };
+      if (pgError.code !== "42P01") {
+        throw error;
+      }
+    }
+  }
 
   if (existing) {
     const result = await db
@@ -395,6 +414,67 @@ export async function saveCustomRules(orgSlug: string, content: string) {
       .returning();
     revalidatePath(`/org/${orgSlug}`);
     return result[0];
+  }
+}
+
+export async function getCustomRulesHistory(orgSlug: string) {
+  const { orgId } = await requireOrgContext(orgSlug);
+  try {
+    const rows = await db
+      .select({
+        id: customRulesHistory.id,
+        content: customRulesHistory.content,
+        createdAt: customRulesHistory.createdAt,
+        createdBy: customRulesHistory.createdBy,
+        authorName: user.name,
+      })
+      .from(customRulesHistory)
+      .leftJoin(user, eq(customRulesHistory.createdBy, user.id))
+      .where(eq(customRulesHistory.orgId, orgId))
+      .orderBy(desc(customRulesHistory.createdAt));
+    return rows;
+  } catch (error) {
+    // Table may not exist yet (migration not run)
+    const pgError = error as { code?: string };
+    if (pgError.code === "42P01") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function restoreCustomRulesVersion(
+  orgSlug: string,
+  historyId: string
+) {
+  const { orgId } = await requireAdmin(orgSlug);
+
+  // Get the history record
+  try {
+    const historyRecord = await db
+      .select()
+      .from(customRulesHistory)
+      .where(
+        and(
+          eq(customRulesHistory.id, historyId),
+          eq(customRulesHistory.orgId, orgId)
+        )
+      )
+      .limit(1);
+
+    if (!historyRecord[0]) {
+      throw new Error("History record not found");
+    }
+
+    // Save the restored content (this will also create a history entry for the current content)
+    return saveCustomRules(orgSlug, historyRecord[0].content);
+  } catch (error) {
+    // Table may not exist yet (migration not run)
+    const pgError = error as { code?: string };
+    if (pgError.code === "42P01") {
+      throw new Error("History feature not available yet");
+    }
+    throw error;
   }
 }
 

@@ -227,6 +227,22 @@ export const customRules = pgTable(
   (table) => [uniqueIndex("custom_rules_org_id_key").on(table.orgId)]
 );
 
+export const customRulesHistory = pgTable(
+  "custom_rules_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [index("custom_rules_history_org_id_idx").on(table.orgId)]
+);
+
 export const exportConfigs = pgTable(
   "export_configs",
   {

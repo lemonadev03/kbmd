@@ -6,8 +6,9 @@ import remarkGfm from "remark-gfm";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Eye, Edit } from "lucide-react";
+import { Eye, Edit, History } from "lucide-react";
 import { HighlightText } from "./highlight-text";
+import { CustomRulesHistoryModal } from "./custom-rules-history-modal";
 
 interface CustomRulesSectionProps {
   content: string;
@@ -16,6 +17,8 @@ interface CustomRulesSectionProps {
   readOnly?: boolean;
   searchQuery?: string;
   currentMatchId?: string | null;
+  orgSlug?: string;
+  onRestoreComplete?: (content: string) => void;
 }
 
 export function CustomRulesSection({
@@ -25,10 +28,13 @@ export function CustomRulesSection({
   readOnly = false,
   searchQuery = "",
   currentMatchId = null,
+  orgSlug,
+  onRestoreComplete,
 }: CustomRulesSectionProps) {
   const canEdit = !readOnly;
   const [editValue, setEditValue] = useState(content);
   const [isPreview, setIsPreview] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // Reset local state when resetSignal changes (discard was clicked)
   useEffect(() => {
@@ -39,6 +45,15 @@ export function CustomRulesSection({
     setEditValue(value);
     if (canEdit) {
       onUpdate(value);
+    }
+  };
+
+  const handleRestore = (restoredContent: string) => {
+    setEditValue(restoredContent);
+    if (onRestoreComplete) {
+      onRestoreComplete(restoredContent);
+    } else {
+      onUpdate(restoredContent);
     }
   };
 
@@ -62,8 +77,18 @@ export function CustomRulesSection({
       <Card className="mt-3">
         <CardContent>
           {canEdit && (
-            <div className="flex justify-end mb-2">
-              <div className="flex gap-1">
+            <div className="flex justify-between mb-2">
+              {orgSlug && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsHistoryOpen(true)}
+                >
+                  <History className="h-4 w-4 mr-1" />
+                  History
+                </Button>
+              )}
+              <div className="flex gap-1 ml-auto">
                 <Button
                   variant={!isPreview ? "secondary" : "ghost"}
                   size="sm"
@@ -109,6 +134,15 @@ export function CustomRulesSection({
           </p>
         </CardContent>
       </Card>
+
+      {orgSlug && (
+        <CustomRulesHistoryModal
+          open={isHistoryOpen}
+          onOpenChange={setIsHistoryOpen}
+          orgSlug={orgSlug}
+          onRestore={handleRestore}
+        />
+      )}
     </section>
   );
 }

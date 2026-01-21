@@ -1090,6 +1090,13 @@ export default function OrgPage({ params }: OrgPageProps) {
     setCustomRulesResetSignal((n) => n + 1);
   };
 
+  const handleRestoreCustomRules = (restoredContent: string) => {
+    // Server has already saved the restored content, so update local state to match
+    setCustomRulesContent(restoredContent);
+    setCustomRulesDraft(null);
+    setCustomRulesResetSignal((n) => n + 1);
+  };
+
   const sortExportConfigs = (configs: ExportConfig[]) =>
     [...configs].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1294,6 +1301,8 @@ export default function OrgPage({ params }: OrgPageProps) {
                   readOnly={!canEdit}
                   searchQuery={searchQuery}
                   currentMatchId={currentMatchId}
+                  orgSlug={orgSlug}
+                  onRestoreComplete={handleRestoreCustomRules}
                 />
               </div>
 
